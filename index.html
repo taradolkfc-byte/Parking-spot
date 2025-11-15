@@ -208,12 +208,12 @@
 
     function parseDateTime(str) {
       if (!str) return null;
-      // "2025-10-23 04:04:04" -> "2025-10-23T04:04:04"
       const iso = str.replace(" ", "T");
       const d = new Date(iso);
       return isNaN(d.getTime()) ? null : d;
     }
 
+    // ฟังก์ชันกรองข้อมูลเต็ม (ใช้ driverFilter ด้วย)
     function getFilteredData() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -235,25 +235,71 @@
         if (end && dt && dt > end) return false;
 
         if (licenseFilter && row[COLUMN.license] !== licenseFilter) return false;
-        if (driverFilter && row[COLUMN.driver] !== driverFilter) return false;
         if (orgFilter && row[COLUMN.org] !== orgFilter) return false;
+        if (driverFilter && row[COLUMN.driver] !== driverFilter) return false;
 
         return true;
       });
     }
 
+    // ฟังก์ชันอัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน + สังกัด
+    function updateDriverOptionsByCurrentFilters() {
+      const startInput = document.getElementById("startDatetime").value;
+      const endInput = document.getElementById("endDatetime").value;
+      const licenseFilter = document.getElementById("licenseSelect").value;
+      const orgFilter = document.getElementById("orgSelect").value;
+      const driverSelect = document.getElementById("driverSelect");
+
+      const start = startInput ? new Date(startInput) : null;
+      const end = endInput ? new Date(endInput) : null;
+
+      const prevValue = driverSelect.value;
+      const driverSet = new Set();
+
+      rawData.forEach(row => {
+        const lat = parseFloat(row[COLUMN.lat]);
+        const lng = parseFloat(row[COLUMN.lng]);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const dt = parseDateTime(row[COLUMN.datetime]);
+
+        if (start && dt && dt < start) return;
+        if (end && dt && dt > end) return;
+        if (licenseFilter && row[COLUMN.license] !== licenseFilter) return;
+        if (orgFilter && row[COLUMN.org] !== orgFilter) return;
+
+        if (row[COLUMN.driver]) driverSet.add(row[COLUMN.driver]);
+      });
+
+      // ลบ option เก่า (ยกเว้นตัวแรก "ทั้งหมด")
+      while (driverSelect.options.length > 1) {
+        driverSelect.remove(1);
+      }
+
+      Array.from(driverSet).sort().forEach(drv => {
+        const opt = document.createElement("option");
+        opt.value = drv;
+        opt.textContent = drv;
+        driverSelect.appendChild(opt);
+      });
+
+      // ถ้า driver เดิมยังอยู่ในรายการ ให้เลือกอันนั้นต่อ, ถ้าไม่มีก็เคลียร์
+      if (prevValue && driverSet.has(prevValue)) {
+        driverSelect.value = prevValue;
+      } else {
+        driverSelect.value = "";
+      }
+    }
+
     function populateFilters() {
       const licenseSelect = document.getElementById("licenseSelect");
-      const driverSelect = document.getElementById("driverSelect");
       const orgSelect = document.getElementById("orgSelect");
 
       const licenseSet = new Set();
-      const driverSet = new Set();
       const orgSet = new Set();
 
       rawData.forEach(row => {
         if (row[COLUMN.license]) licenseSet.add(row[COLUMN.license]);
-        if (row[COLUMN.driver]) driverSet.add(row[COLUMN.driver]);
         if (row[COLUMN.org]) orgSet.add(row[COLUMN.org]);
       });
 
@@ -264,19 +310,15 @@
         licenseSelect.appendChild(opt);
       });
 
-      Array.from(driverSet).sort().forEach(drv => {
-        const opt = document.createElement("option");
-        opt.value = drv;
-        opt.textContent = drv;
-        driverSelect.appendChild(opt);
-      });
-
       Array.from(orgSet).sort().forEach(org => {
         const opt = document.createElement("option");
         opt.value = org;
         opt.textContent = org;
         orgSelect.appendChild(opt);
       });
+
+      // driver dropdown แรกสุดให้แสดงจากข้อมูลทั้งหมดก่อน
+      updateDriverOptionsByCurrentFilters();
     }
 
     function resetFilters() {
@@ -301,6 +343,10 @@
 
     function renderMap() {
       markersLayer.clearLayers();
+
+      // อัปเดต driver list ให้เหลือเฉพาะที่มีในช่วงเวลา + ทะเบียน + สังกัด
+      updateDriverOptionsByCurrentFilters();
+
       const filtered = getFilteredData();
 
       if (filtered.length === 0) {
@@ -344,7 +390,10 @@
             <strong>สังกัด:</strong> ${org}<br/>
             <strong>สถานที่:</strong> ${locationText}<br/>
             <strong>ระยะห่างจุดใกล้สุด:</strong> ${distance}<br/>
-            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
+            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+              เปิดใน Google Maps
+            </a>
           </div>
         `;
 
