@@ -392,6 +392,7 @@
       document.getElementById("driverSelect").value = "";
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
+      renderMap(); // ให้กลับไปแสดงเฉพาะ parking
     }
 
     function initMap() {
@@ -430,7 +431,7 @@
       return clusters;
     }
 
-    /********* แสดงหมุด parking ให้เด่น *********/
+    /********* แสดงหมุด parking ให้เด่น + ชื่อสถานที่ *********/
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -440,7 +441,7 @@
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize: [26, 42],      // เล็กลงจากเดิม แต่ยังเด่นกว่าจุดจอด
+        iconSize: [26, 42],
         iconAnchor: [13, 42],
         popupAnchor: [0, -38],
         shadowSize: [41, 41]
@@ -472,6 +473,8 @@
 
         const m = L.marker([lat, lng], { icon: defaultIcon });
         m.bindPopup(popupHtml);
+        // แสดงชื่อสถานที่เวลาเอาเมาส์ชี้
+        m.bindTooltip(name, { direction: "top", offset: [0, -28] });
         m.addTo(parkingLayer);
 
         if (boundsArray) boundsArray.push([lat, lng]);
@@ -481,24 +484,39 @@
     function renderMap() {
       markersLayer.clearLayers();
 
+      const bounds = [];
+
+      // แสดงหมุด parking เสมอ
+      renderParkingMarkers(bounds);
+
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
 
+      const startInput = document.getElementById("startDatetime").value;
+      const endInput = document.getElementById("endDatetime").value;
+
+      const legendDivOld = document.querySelector(".legend-container");
+      if (legendDivOld) legendDivOld.remove();
+
+      // ถ้ายังไม่เลือกวันเลย → แสดงเฉพาะ parking
+      if (!startInput && !endInput) {
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [40, 40] });
+        }
+        updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐาน)");
+        return;
+      }
+
       const filtered = getFilteredData();
       if (filtered.length === 0) {
-        const boundsEmpty = [];
-        renderParkingMarkers(boundsEmpty);
-        if (boundsEmpty.length > 0) {
-          map.fitBounds(boundsEmpty, { padding: [40, 40] });
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [40, 40] });
         }
         updateStatus("ไม่พบข้อมูลจุดจอดตามเงื่อนไขที่เลือก (แสดงเฉพาะหมุด parking)");
         return;
       }
 
       const clusters = clusterByRadius(filtered, 300);
-      const bounds = [];
-      const legendDiv = document.querySelector(".legend-container");
-      if (legendDiv) legendDiv.remove();
 
       const licensesInView = new Set();
       let totalPoints = 0;
@@ -560,9 +578,6 @@
         marker.addTo(markersLayer);
         bounds.push([lat, lng]);
       });
-
-      // แสดงหมุด parking และให้มีผลต่อการ fitBounds ด้วย
-      renderParkingMarkers(bounds);
 
       if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [40, 40] });
@@ -649,7 +664,6 @@
         .getElementById("resetFilterBtn")
         .addEventListener("click", () => {
           resetFilters();
-          renderMap();
         });
     });
   </script>
