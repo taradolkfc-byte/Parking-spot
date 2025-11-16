@@ -178,7 +178,7 @@
       driver: "ชื่อ พขร"
     };
 
-    // สำหรับชีต parking (เดาโครงสร้างให้รองรับกรณีใช้หัวเหมือนกัน)
+    // สำหรับชีต parking
     const PARKING_COLUMN = {
       lat: "ละ",
       lng: "ลอง",
@@ -435,15 +435,15 @@
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
 
-      // ใช้ default Leaflet marker (หมุด) ซึ่งเด่นกว่าวงกลมอยู่แล้ว
+      // หมุดสีเขียวอ่อน ขนาดใหญ่กว่าวงกลมเล็กน้อย
       const defaultIcon = L.icon({
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+        iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+        iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize: [30, 45],      // ขยายให้ใหญ่กว่าปกติ
-        iconAnchor: [15, 45],
-        popupAnchor: [0, -40],
-        shadowSize: [45, 45]
+        iconSize: [26, 42],      // เล็กลงจากเดิม แต่ยังเด่นกว่าจุดจอด
+        iconAnchor: [13, 42],
+        popupAnchor: [0, -38],
+        shadowSize: [41, 41]
       });
 
       parkingData.forEach(row => {
@@ -486,7 +486,6 @@
 
       const filtered = getFilteredData();
       if (filtered.length === 0) {
-        // ถึงไม่มีจุดจอด ก็ยังให้หมุด parking แสดง
         const boundsEmpty = [];
         renderParkingMarkers(boundsEmpty);
         if (boundsEmpty.length > 0) {
