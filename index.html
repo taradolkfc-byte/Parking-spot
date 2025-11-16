@@ -163,6 +163,10 @@
     const SHEET_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
+    // ชีตจุดจอด/ที่จอดมาตรฐาน (parking)
+    const PARKING_CSV_URL =
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+
     const COLUMN = {
       license: "ทะเบียน",
       datetime: "วันและเวลา",
@@ -174,8 +178,19 @@
       driver: "ชื่อ พขร"
     };
 
+    // สำหรับชีต parking (เดาโครงสร้างให้รองรับกรณีใช้หัวเหมือนกัน)
+    const PARKING_COLUMN = {
+      lat: "ละ",
+      lng: "ลอง",
+      name: "ชื่อจุด",
+      locationText: "ระบุสถานที่",
+      note: "หมายเหตุ"
+    };
+
     let rawData = [];
-    let map, markersLayer;
+    let parkingData = [];
+
+    let map, markersLayer, parkingLayer;
     const licenseColorMap = {};
 
     const colorPalette = [
@@ -273,7 +288,7 @@
       });
     }
 
-    // 🔹 ใหม่: อัปเดตรายการทะเบียน ตามช่วงวันที่ + พขร.
+    // 🔹 อัปเดตรายการทะเบียน ตามช่วงวันที่ + พขร.
     function updateLicenseOptionsByCurrentFilters() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -301,7 +316,6 @@
         if (row[COLUMN.license]) licenseSet.add(row[COLUMN.license]);
       });
 
-      // ล้าง option เดิม เหลือแค่ "ทั้งหมด"
       while (licenseSelect.options.length > 1) {
         licenseSelect.remove(1);
       }
@@ -367,7 +381,6 @@
     }
 
     function populateFilters() {
-      // ครั้งแรกยังไม่มี filter อะไร → จะได้รายการทะเบียนและ พขร. จากข้อมูลทั้งหมด
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
     }
@@ -377,7 +390,6 @@
       document.getElementById("endDatetime").value = "";
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
-      // รีเฟรชรายการทะเบียนและ พขร. กลับเป็นทั้งหมด
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
     }
@@ -389,8 +401,10 @@
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
       markersLayer = L.layerGroup().addTo(map);
+      parkingLayer = L.layerGroup().addTo(map);
     }
 
+    /********* cluster 300 เมตร *********/
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
       data.forEach(row => {
@@ -416,16 +430,69 @@
       return clusters;
     }
 
+    /********* แสดงหมุด parking ให้เด่น *********/
+    function renderParkingMarkers(boundsArray) {
+      parkingLayer.clearLayers();
+      if (!parkingData.length) return;
+
+      // ใช้ default Leaflet marker (หมุด) ซึ่งเด่นกว่าวงกลมอยู่แล้ว
+      const defaultIcon = L.icon({
+        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        iconSize: [30, 45],      // ขยายให้ใหญ่กว่าปกติ
+        iconAnchor: [15, 45],
+        popupAnchor: [0, -40],
+        shadowSize: [45, 45]
+      });
+
+      parkingData.forEach(row => {
+        const lat = parseFloat(row[PARKING_COLUMN.lat] || row["ละ"]);
+        const lng = parseFloat(row[PARKING_COLUMN.lng] || row["ลอง"]);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const name =
+          row[PARKING_COLUMN.name] ||
+          row[PARKING_COLUMN.locationText] ||
+          row["ชื่อสถานที่"] ||
+          "-";
+
+        const note = row[PARKING_COLUMN.note] || "";
+
+        const popupHtml = `
+          <div style="font-size:12px;">
+            <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
+            ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
+            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+              เปิดใน Google Maps
+            </a>
+          </div>
+        `;
+
+        const m = L.marker([lat, lng], { icon: defaultIcon });
+        m.bindPopup(popupHtml);
+        m.addTo(parkingLayer);
+
+        if (boundsArray) boundsArray.push([lat, lng]);
+      });
+    }
+
     function renderMap() {
       markersLayer.clearLayers();
 
-      // อัปเดตตัวเลือกทะเบียน/พขร. ให้ตรงกับ filter ปัจจุบัน
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
 
       const filtered = getFilteredData();
       if (filtered.length === 0) {
-        updateStatus("ไม่พบข้อมูลตามเงื่อนไขที่เลือก");
+        // ถึงไม่มีจุดจอด ก็ยังให้หมุด parking แสดง
+        const boundsEmpty = [];
+        renderParkingMarkers(boundsEmpty);
+        if (boundsEmpty.length > 0) {
+          map.fitBounds(boundsEmpty, { padding: [40, 40] });
+        }
+        updateStatus("ไม่พบข้อมูลจุดจอดตามเงื่อนไขที่เลือก (แสดงเฉพาะหมุด parking)");
         return;
       }
 
@@ -495,6 +562,9 @@
         bounds.push([lat, lng]);
       });
 
+      // แสดงหมุด parking และให้มีผลต่อการ fitBounds ด้วย
+      renderParkingMarkers(bounds);
+
       if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [40, 40] });
       }
@@ -527,6 +597,24 @@
       legend.addTo(map);
     }
 
+    /********* โหลดข้อมูลสองชีต *********/
+    function loadParkingData(callback) {
+      Papa.parse(PARKING_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function (results) {
+          parkingData = results.data || [];
+          if (callback) callback();
+        },
+        error: function (err) {
+          console.error("Parking sheet error:", err);
+          parkingData = [];
+          if (callback) callback();
+        }
+      });
+    }
+
     function loadData() {
       updateStatus("กำลังโหลดข้อมูลจาก Google Sheets...");
 
@@ -536,13 +624,16 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
-          updateStatus(`โหลดข้อมูลสำเร็จ: ${rawData.length.toLocaleString()} แถว`);
-          populateFilters();
-          renderMap();
+          // โหลด parking ต่อ
+          loadParkingData(() => {
+            updateStatus(`โหลดข้อมูลสำเร็จ: จุดจอด ${rawData.length.toLocaleString()} แถว, parking ${parkingData.length.toLocaleString()} จุด`);
+            populateFilters();
+            renderMap();
+          });
         },
         error: function (err) {
-          console.error(err);
-          updateStatus("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+          console.error("Main sheet error:", err);
+          updateStatus("เกิดข้อผิดพลาดในการโหลดข้อมูลจุดจอด");
         }
       });
     }
