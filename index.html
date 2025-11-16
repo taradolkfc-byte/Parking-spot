@@ -132,7 +132,6 @@
           <option value="">ทั้งหมด</option>
         </select>
       </div>
-      <!-- ลบ filter สังกัดออกตามที่ขอ -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="applyFilterBtn">Apply Filter</button>
@@ -164,36 +163,31 @@
     const SHEET_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
-    // mapping หัวคอลัมน์ตามชีต dataset
     const COLUMN = {
-      license: "ทะเบียน",             // A
-      datetime: "วันและเวลา",         // B
-      lat: "ละ",                      // C
-      lng: "ลอง",                     // D
-      org: "สังกัด",                  // E (ยังใช้แสดงใน popup)
-      distance: "ระยะห่างจุดใกล้สุด", // F
-      locationText: "ระบุสถานที่",    // G
-      driver: "ชื่อ พขร"              // H
+      license: "ทะเบียน",
+      datetime: "วันและเวลา",
+      lat: "ละ",
+      lng: "ลอง",
+      org: "สังกัด",
+      distance: "ระยะห่างจุดใกล้สุด",
+      locationText: "ระบุสถานที่",
+      driver: "ชื่อ พขร"
     };
 
-    /*******************************
-     * 2) ตัวแปรหลัก
-     *******************************/
     let rawData = [];
     let map, markersLayer;
     const licenseColorMap = {};
 
-    // palette – fix 70-2484-70 เป็นสีเหลือง
     const colorPalette = [
-      "#ef4444", // แดง
-      "#3b82f6", // น้ำเงิน
-      "#f97316", // ส้ม
-      "#a855f7", // ม่วง
-      "#eab308", // เหลือง
-      "#ec4899", // ชมพู
-      "#6366f1", // น้ำเงินอมม่วง
-      "#f59e0b", // ส้มอ่อน
-      "#fb7185"  // ชมพูแดง
+      "#ef4444",
+      "#3b82f6",
+      "#f97316",
+      "#a855f7",
+      "#eab308",
+      "#ec4899",
+      "#6366f1",
+      "#f59e0b",
+      "#fb7185"
     ];
 
     function updateStatus(text) {
@@ -202,13 +196,10 @@
 
     function getColorForLicense(license) {
       if (!license) return "#000000";
-
-      // บังคับทะเบียน 70-2484-70 เป็นสีเหลือง
       if (license === "70-2484-70") {
-        licenseColorMap[license] = "#eab308";
+        licenseColorMap[license] = "#eab308"; // เหลือง
         return "#eab308";
       }
-
       if (!licenseColorMap[license]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
         licenseColorMap[license] = colorPalette[index];
@@ -216,7 +207,6 @@
       return licenseColorMap[license];
     }
 
-    // แปลง string -> Date แบบจับทีละส่วน (กันกรณี format แปลก)
     function parseDateTime(str) {
       if (!str) return null;
       const s = String(str).trim();
@@ -225,15 +215,12 @@
 
       const [y, m, d] = datePart.split("-").map(Number);
       const [hh, mm = 0, ss = 0] = timePart.split(":").map(Number);
-
       if ([y, m, d].some(v => isNaN(v))) return null;
-
       return new Date(y, m - 1, d, hh || 0, mm || 0, ss || 0);
     }
 
-    /********* ฟังก์ชันคำนวณระยะ & โซนไฟแดง *********/
     function haversineMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000; // m
+      const R = 6371000;
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(lat2 - lat1);
       const dLon = toRad(lon2 - lon1);
@@ -245,11 +232,9 @@
       return R * c;
     }
 
-    // 🔴 โซนไฟแดง – ให้คุณแก้ lat/lng/radiusMeters เองจาก Google Maps
+    // ป้อนเองทีหลังหากต้องการตัดโซนไฟแดง
     const TRAFFIC_LIGHT_ZONES = [
-      // ตัวอย่าง:
-      // { lat: 16.40075, lng: 103.36453, radiusMeters: 80 }, // ไฟแดงจุดที่ 1
-      // { lat: 16.45, lng: 103.6, radiusMeters: 80 }         // ไฟแดงจุดที่ 2
+      // { lat: 16.40075, lng: 103.36453, radiusMeters: 80 },
     ];
 
     function isInTrafficLightZone(lat, lng) {
@@ -260,7 +245,7 @@
       return false;
     }
 
-    // กรองข้อมูลตามช่วงวันเวลา + ทะเบียน + พขร + ตัดโซนไฟแดงออก
+    // กรองข้อมูลตามช่วงเวลา + ทะเบียน + พขร + ตัดโซนไฟแดง
     function getFilteredData() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -274,15 +259,10 @@
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return false;
-
-        // ตัดจุดที่อยู่ในโซนไฟแดงออก
         if (isInTrafficLightZone(lat, lng)) return false;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
-
-        // ถ้ามีการกำหนด start/end แต่ parse datetime ไม่ได้ → ตัดทิ้งเลย
         if ((start || end) && !dt) return false;
-
         if (start && dt < start) return false;
         if (end && dt > end) return false;
 
@@ -293,7 +273,54 @@
       });
     }
 
-    // อัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน (และตัดโซนไฟแดง)
+    // 🔹 ใหม่: อัปเดตรายการทะเบียน ตามช่วงวันที่ + พขร.
+    function updateLicenseOptionsByCurrentFilters() {
+      const startInput = document.getElementById("startDatetime").value;
+      const endInput = document.getElementById("endDatetime").value;
+      const driverFilter = document.getElementById("driverSelect").value;
+      const licenseSelect = document.getElementById("licenseSelect");
+
+      const start = startInput ? new Date(startInput) : null;
+      const end = endInput ? new Date(endInput) : null;
+
+      const prevValue = licenseSelect.value;
+      const licenseSet = new Set();
+
+      rawData.forEach(row => {
+        const lat = parseFloat(row[COLUMN.lat]);
+        const lng = parseFloat(row[COLUMN.lng]);
+        if (isNaN(lat) || isNaN(lng)) return;
+        if (isInTrafficLightZone(lat, lng)) return;
+
+        const dt = parseDateTime(row[COLUMN.datetime]);
+        if ((start || end) && !dt) return;
+        if (start && dt < start) return;
+        if (end && dt > end) return;
+        if (driverFilter && row[COLUMN.driver] !== driverFilter) return;
+
+        if (row[COLUMN.license]) licenseSet.add(row[COLUMN.license]);
+      });
+
+      // ล้าง option เดิม เหลือแค่ "ทั้งหมด"
+      while (licenseSelect.options.length > 1) {
+        licenseSelect.remove(1);
+      }
+
+      Array.from(licenseSet).sort().forEach(lic => {
+        const opt = document.createElement("option");
+        opt.value = lic;
+        opt.textContent = lic;
+        licenseSelect.appendChild(opt);
+      });
+
+      if (prevValue && licenseSet.has(prevValue)) {
+        licenseSelect.value = prevValue;
+      } else {
+        licenseSelect.value = "";
+      }
+    }
+
+    // อัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน
     function updateDriverOptionsByCurrentFilters() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -310,12 +337,9 @@
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return;
-
-        // ตัดโซนไฟแดงออกด้วยเหมือนกัน
         if (isInTrafficLightZone(lat, lng)) return;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
-
         if ((start || end) && !dt) return;
         if (start && dt < start) return;
         if (end && dt > end) return;
@@ -343,20 +367,8 @@
     }
 
     function populateFilters() {
-      const licenseSelect = document.getElementById("licenseSelect");
-      const licenseSet = new Set();
-
-      rawData.forEach(row => {
-        if (row[COLUMN.license]) licenseSet.add(row[COLUMN.license]);
-      });
-
-      Array.from(licenseSet).sort().forEach(lic => {
-        const opt = document.createElement("option");
-        opt.value = lic;
-        opt.textContent = lic;
-        licenseSelect.appendChild(opt);
-      });
-
+      // ครั้งแรกยังไม่มี filter อะไร → จะได้รายการทะเบียนและ พขร. จากข้อมูลทั้งหมด
+      updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
     }
 
@@ -365,23 +377,22 @@
       document.getElementById("endDatetime").value = "";
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
+      // รีเฟรชรายการทะเบียนและ พขร. กลับเป็นทั้งหมด
+      updateLicenseOptionsByCurrentFilters();
+      updateDriverOptionsByCurrentFilters();
     }
 
     function initMap() {
       map = L.map("map").setView([16.3, 103.3], 7);
-
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
-
       markersLayer = L.layerGroup().addTo(map);
     }
 
-    /********* จัดกลุ่ม 300 เมตร *********/
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
-
       data.forEach(row => {
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
@@ -399,31 +410,26 @@
         if (found) {
           found.rows.push(row);
         } else {
-          clusters.push({
-            lat,
-            lng,
-            rows: [row]
-          });
+          clusters.push({ lat, lng, rows: [row] });
         }
       });
-
       return clusters;
     }
 
     function renderMap() {
       markersLayer.clearLayers();
 
+      // อัปเดตตัวเลือกทะเบียน/พขร. ให้ตรงกับ filter ปัจจุบัน
+      updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
 
       const filtered = getFilteredData();
-
       if (filtered.length === 0) {
         updateStatus("ไม่พบข้อมูลตามเงื่อนไขที่เลือก");
         return;
       }
 
       const clusters = clusterByRadius(filtered, 300);
-
       const bounds = [];
       const legendDiv = document.querySelector(".legend-container");
       if (legendDiv) legendDiv.remove();
@@ -434,7 +440,6 @@
       clusters.forEach(cluster => {
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
-
         totalPoints += rows.length;
 
         const sortedRows = rows
