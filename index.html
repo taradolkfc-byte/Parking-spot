@@ -132,12 +132,7 @@
           <option value="">ทั้งหมด</option>
         </select>
       </div>
-      <div class="filter-group">
-        <label for="orgSelect">สังกัด</label>
-        <select id="orgSelect">
-          <option value="">ทั้งหมด</option>
-        </select>
-      </div>
+      <!-- ลบ filter สังกัดออกตามที่ขอ -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="applyFilterBtn">Apply Filter</button>
@@ -175,7 +170,7 @@
       datetime: "วันและเวลา",         // B
       lat: "ละ",                      // C
       lng: "ลอง",                     // D
-      org: "สังกัด",                  // E
+      org: "สังกัด",                  // E (ยังใช้แสดงใน popup)
       distance: "ระยะห่างจุดใกล้สุด", // F
       locationText: "ระบุสถานที่",    // G
       driver: "ชื่อ พขร"              // H
@@ -188,7 +183,7 @@
     let map, markersLayer;
     const licenseColorMap = {};
 
-    // palette – แต่ fix 70-2484-70 ให้เป็นเหลือง
+    // palette – fix 70-2484-70 เป็นสีเหลือง
     const colorPalette = [
       "#ef4444", // แดง
       "#3b82f6", // น้ำเงิน
@@ -233,16 +228,44 @@
 
       if ([y, m, d].some(v => isNaN(v))) return null;
 
-      return new Date(y, m - 1, hh ?? 0 ? d : d, hh || 0, mm || 0, ss || 0);
+      return new Date(y, m - 1, d, hh || 0, mm || 0, ss || 0);
     }
 
-    // กรองข้อมูลตามช่วงวันเวลา + ทะเบียน + พขร + สังกัด
+    /********* ฟังก์ชันคำนวณระยะ & โซนไฟแดง *********/
+    function haversineMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // m
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // 🔴 โซนไฟแดง – ให้คุณแก้ lat/lng/radiusMeters เองจาก Google Maps
+    const TRAFFIC_LIGHT_ZONES = [
+      // ตัวอย่าง:
+      // { lat: 16.40075, lng: 103.36453, radiusMeters: 80 }, // ไฟแดงจุดที่ 1
+      // { lat: 16.45, lng: 103.6, radiusMeters: 80 }         // ไฟแดงจุดที่ 2
+    ];
+
+    function isInTrafficLightZone(lat, lng) {
+      for (const z of TRAFFIC_LIGHT_ZONES) {
+        const d = haversineMeters(lat, lng, z.lat, z.lng);
+        if (d <= z.radiusMeters) return true;
+      }
+      return false;
+    }
+
+    // กรองข้อมูลตามช่วงวันเวลา + ทะเบียน + พขร + ตัดโซนไฟแดงออก
     function getFilteredData() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
       const licenseFilter = document.getElementById("licenseSelect").value;
       const driverFilter = document.getElementById("driverSelect").value;
-      const orgFilter = document.getElementById("orgSelect").value;
 
       const start = startInput ? new Date(startInput) : null;
       const end = endInput ? new Date(endInput) : null;
@@ -251,6 +274,9 @@
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return false;
+
+        // ตัดจุดที่อยู่ในโซนไฟแดงออก
+        if (isInTrafficLightZone(lat, lng)) return false;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
 
@@ -261,19 +287,17 @@
         if (end && dt > end) return false;
 
         if (licenseFilter && row[COLUMN.license] !== licenseFilter) return false;
-        if (orgFilter && row[COLUMN.org] !== orgFilter) return false;
         if (driverFilter && row[COLUMN.driver] !== driverFilter) return false;
 
         return true;
       });
     }
 
-    // อัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน + สังกัด
+    // อัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน (และตัดโซนไฟแดง)
     function updateDriverOptionsByCurrentFilters() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
       const licenseFilter = document.getElementById("licenseSelect").value;
-      const orgFilter = document.getElementById("orgSelect").value;
       const driverSelect = document.getElementById("driverSelect");
 
       const start = startInput ? new Date(startInput) : null;
@@ -287,13 +311,15 @@
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return;
 
+        // ตัดโซนไฟแดงออกด้วยเหมือนกัน
+        if (isInTrafficLightZone(lat, lng)) return;
+
         const dt = parseDateTime(row[COLUMN.datetime]);
 
         if ((start || end) && !dt) return;
         if (start && dt < start) return;
         if (end && dt > end) return;
         if (licenseFilter && row[COLUMN.license] !== licenseFilter) return;
-        if (orgFilter && row[COLUMN.org] !== orgFilter) return;
 
         if (row[COLUMN.driver]) driverSet.add(row[COLUMN.driver]);
       });
@@ -318,14 +344,10 @@
 
     function populateFilters() {
       const licenseSelect = document.getElementById("licenseSelect");
-      const orgSelect = document.getElementById("orgSelect");
-
       const licenseSet = new Set();
-      const orgSet = new Set();
 
       rawData.forEach(row => {
         if (row[COLUMN.license]) licenseSet.add(row[COLUMN.license]);
-        if (row[COLUMN.org]) orgSet.add(row[COLUMN.org]);
       });
 
       Array.from(licenseSet).sort().forEach(lic => {
@@ -333,13 +355,6 @@
         opt.value = lic;
         opt.textContent = lic;
         licenseSelect.appendChild(opt);
-      });
-
-      Array.from(orgSet).sort().forEach(org => {
-        const opt = document.createElement("option");
-        opt.value = org;
-        opt.textContent = org;
-        orgSelect.appendChild(opt);
       });
 
       updateDriverOptionsByCurrentFilters();
@@ -350,7 +365,6 @@
       document.getElementById("endDatetime").value = "";
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
-      document.getElementById("orgSelect").value = "";
     }
 
     function initMap() {
@@ -364,20 +378,7 @@
       markersLayer = L.layerGroup().addTo(map);
     }
 
-    /********* ฟังก์ชันคำนวณระยะ & จัดกลุ่ม 300 เมตร *********/
-    function haversineMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000; // m
-      const toRad = x => x * Math.PI / 180;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    }
-
+    /********* จัดกลุ่ม 300 เมตร *********/
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
 
