@@ -188,7 +188,7 @@
     let map, markersLayer;
     const licenseColorMap = {};
 
-    // ตัดสีเขียวออก เพื่อไม่ให้กลืนกับแผนที่
+    // palette – แต่ fix 70-2484-70 ให้เป็นเหลือง
     const colorPalette = [
       "#ef4444", // แดง
       "#3b82f6", // น้ำเงิน
@@ -206,6 +206,14 @@
     }
 
     function getColorForLicense(license) {
+      if (!license) return "#000000";
+
+      // บังคับทะเบียน 70-2484-70 เป็นสีเหลือง
+      if (license === "70-2484-70") {
+        licenseColorMap[license] = "#eab308";
+        return "#eab308";
+      }
+
       if (!licenseColorMap[license]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
         licenseColorMap[license] = colorPalette[index];
@@ -213,11 +221,19 @@
       return licenseColorMap[license];
     }
 
+    // แปลง string -> Date แบบจับทีละส่วน (กันกรณี format แปลก)
     function parseDateTime(str) {
       if (!str) return null;
-      const iso = str.replace(" ", "T");
-      const d = new Date(iso);
-      return isNaN(d.getTime()) ? null : d;
+      const s = String(str).trim();
+      const [datePart, timePart] = s.split(" ");
+      if (!datePart || !timePart) return null;
+
+      const [y, m, d] = datePart.split("-").map(Number);
+      const [hh, mm = 0, ss = 0] = timePart.split(":").map(Number);
+
+      if ([y, m, d].some(v => isNaN(v))) return null;
+
+      return new Date(y, m - 1, hh ?? 0 ? d : d, hh || 0, mm || 0, ss || 0);
     }
 
     // กรองข้อมูลตามช่วงวันเวลา + ทะเบียน + พขร + สังกัด
@@ -238,8 +254,11 @@
 
         const dt = parseDateTime(row[COLUMN.datetime]);
 
-        if (start && dt && dt < start) return false;
-        if (end && dt && dt > end) return false;
+        // ถ้ามีการกำหนด start/end แต่ parse datetime ไม่ได้ → ตัดทิ้งเลย
+        if ((start || end) && !dt) return false;
+
+        if (start && dt < start) return false;
+        if (end && dt > end) return false;
 
         if (licenseFilter && row[COLUMN.license] !== licenseFilter) return false;
         if (orgFilter && row[COLUMN.org] !== orgFilter) return false;
@@ -270,8 +289,9 @@
 
         const dt = parseDateTime(row[COLUMN.datetime]);
 
-        if (start && dt && dt < start) return;
-        if (end && dt && dt > end) return;
+        if ((start || end) && !dt) return;
+        if (start && dt < start) return;
+        if (end && dt > end) return;
         if (licenseFilter && row[COLUMN.license] !== licenseFilter) return;
         if (orgFilter && row[COLUMN.org] !== orgFilter) return;
 
@@ -358,7 +378,6 @@
       return R * c;
     }
 
-    // รับ array ที่กรองแล้ว → จัดกลุ่มตามรัศมี 300 ม.
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
 
@@ -393,7 +412,6 @@
     function renderMap() {
       markersLayer.clearLayers();
 
-      // อัปเดต driver list ให้เหลือเฉพาะที่มีในช่วงเวลา + ทะเบียน + สังกัด
       updateDriverOptionsByCurrentFilters();
 
       const filtered = getFilteredData();
@@ -403,7 +421,6 @@
         return;
       }
 
-      // จัดกลุ่มตามรัศมี 300 ม.
       const clusters = clusterByRadius(filtered, 300);
 
       const bounds = [];
@@ -419,7 +436,6 @@
 
         totalPoints += rows.length;
 
-        // เรียงตามเวลา
         const sortedRows = rows
           .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
           .sort((a, b) => (a.dt || 0) - (b.dt || 0));
@@ -439,14 +455,15 @@
         const distance = first[COLUMN.distance] || "-";
         const org = first[COLUMN.org] || "-";
 
-        const color = getColorForLicense(first[COLUMN.license] || licenseText);
-        licensesInView.add(first[COLUMN.license] || licenseText);
+        const firstLicense = first[COLUMN.license] || licenseText;
+        const color = getColorForLicense(firstLicense);
+        licensesInView.add(firstLicense);
 
         const marker = L.circleMarker([lat, lng], {
           radius: 7,
-          color: "#000000",       // ขอบดำ
+          color: "#000000",
           weight: 1.5,
-          fillColor: color,       // สีตามทะเบียน
+          fillColor: color,
           fillOpacity: 0.95
         });
 
@@ -478,7 +495,6 @@
 
       updateStatus(`จำนวนกลุ่มจุดจอด: ${clusters.length.toLocaleString()} กลุ่ม (รวม ${totalPoints.toLocaleString()} จุดข้อมูล)`);
 
-      // legend แสดงสีตามทะเบียน
       const legend = L.control({ position: "topright" });
       legend.onAdd = function () {
         const div = L.DomUtil.create("div", "legend legend-container");
