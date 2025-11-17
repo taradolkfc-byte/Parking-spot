@@ -157,13 +157,9 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    /*******************************
-     * 1) CONFIG: Google Sheet ชีต dataset
-     *******************************/
     const SHEET_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
-    // ชีตจุดจอด/ที่จอดมาตรฐาน (parking)
     const PARKING_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
@@ -178,7 +174,6 @@
       driver: "ชื่อ พขร"
     };
 
-    // สำหรับชีต parking
     const PARKING_COLUMN = {
       lat: "ละ",
       lng: "ลอง",
@@ -212,7 +207,7 @@
     function getColorForLicense(license) {
       if (!license) return "#000000";
       if (license === "70-2484-70") {
-        licenseColorMap[license] = "#eab308"; // เหลือง
+        licenseColorMap[license] = "#eab308";
         return "#eab308";
       }
       if (!licenseColorMap[license]) {
@@ -227,7 +222,6 @@
       const s = String(str).trim();
       const [datePart, timePart] = s.split(" ");
       if (!datePart || !timePart) return null;
-
       const [y, m, d] = datePart.split("-").map(Number);
       const [hh, mm = 0, ss = 0] = timePart.split(":").map(Number);
       if ([y, m, d].some(v => isNaN(v))) return null;
@@ -247,7 +241,6 @@
       return R * c;
     }
 
-    // ป้อนเองทีหลังหากต้องการตัดโซนไฟแดง
     const TRAFFIC_LIGHT_ZONES = [
       // { lat: 16.40075, lng: 103.36453, radiusMeters: 80 },
     ];
@@ -260,7 +253,6 @@
       return false;
     }
 
-    // กรองข้อมูลตามช่วงเวลา + ทะเบียน + พขร + ตัดโซนไฟแดง
     function getFilteredData() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -288,7 +280,6 @@
       });
     }
 
-    // 🔹 อัปเดตรายการทะเบียน ตามช่วงวันที่ + พขร.
     function updateLicenseOptionsByCurrentFilters() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -334,7 +325,6 @@
       }
     }
 
-    // อัปเดต dropdown "ชื่อ พขร" ตามช่วงเวลา + ทะเบียน
     function updateDriverOptionsByCurrentFilters() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -392,7 +382,7 @@
       document.getElementById("driverSelect").value = "";
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
-      renderMap(); // ให้กลับไปแสดงเฉพาะ parking
+      renderMap();
     }
 
     function initMap() {
@@ -405,7 +395,6 @@
       parkingLayer = L.layerGroup().addTo(map);
     }
 
-    /********* cluster 300 เมตร *********/
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
       data.forEach(row => {
@@ -431,12 +420,11 @@
       return clusters;
     }
 
-    /********* แสดงหมุด parking ให้เด่น + ชื่อสถานที่ *********/
+    /********* แสดงหมุด parking ให้เด่น + ใช้คอลัมน์ A,B,C เป็นหลัก *********/
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
 
-      // หมุดสีเขียวอ่อน ขนาดใหญ่กว่าวงกลมเล็กน้อย
       const defaultIcon = L.icon({
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -448,15 +436,27 @@
       });
 
       parkingData.forEach(row => {
-        const lat = parseFloat(row[PARKING_COLUMN.lat] || row["ละ"]);
-        const lng = parseFloat(row[PARKING_COLUMN.lng] || row["ลอง"]);
-        if (isNaN(lat) || isNaN(lng)) return;
+        // ดึงตามชื่อหัวคอลัมน์ก่อน ถ้าไม่เจอให้ fallback เป็นลำดับคอลัมน์ A,B,C
+        const vals = Object.values(row);
 
         const name =
           row[PARKING_COLUMN.name] ||
           row[PARKING_COLUMN.locationText] ||
           row["ชื่อสถานที่"] ||
-          "-";
+          vals[0] || "-";
+
+        const lat = parseFloat(
+          row[PARKING_COLUMN.lat] ||
+          row["ละ"] ||
+          vals[1]
+        );
+        const lng = parseFloat(
+          row[PARKING_COLUMN.lng] ||
+          row["ลอง"] ||
+          vals[2]
+        );
+
+        if (isNaN(lat) || isNaN(lng)) return;
 
         const note = row[PARKING_COLUMN.note] || "";
 
@@ -473,7 +473,6 @@
 
         const m = L.marker([lat, lng], { icon: defaultIcon });
         m.bindPopup(popupHtml);
-        // แสดงชื่อสถานที่เวลาเอาเมาส์ชี้
         m.bindTooltip(name, { direction: "top", offset: [0, -28] });
         m.addTo(parkingLayer);
 
@@ -485,8 +484,6 @@
       markersLayer.clearLayers();
 
       const bounds = [];
-
-      // แสดงหมุด parking เสมอ
       renderParkingMarkers(bounds);
 
       updateLicenseOptionsByCurrentFilters();
@@ -498,7 +495,6 @@
       const legendDivOld = document.querySelector(".legend-container");
       if (legendDivOld) legendDivOld.remove();
 
-      // ถ้ายังไม่เลือกวันเลย → แสดงเฉพาะ parking
       if (!startInput && !endInput) {
         if (bounds.length > 0) {
           map.fitBounds(bounds, { padding: [40, 40] });
@@ -611,7 +607,6 @@
       legend.addTo(map);
     }
 
-    /********* โหลดข้อมูลสองชีต *********/
     function loadParkingData(callback) {
       Papa.parse(PARKING_CSV_URL, {
         download: true,
@@ -638,7 +633,6 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
-          // โหลด parking ต่อ
           loadParkingData(() => {
             updateStatus(`โหลดข้อมูลสำเร็จ: จุดจอด ${rawData.length.toLocaleString()} แถว, parking ${parkingData.length.toLocaleString()} จุด`);
             populateFilters();
@@ -663,8 +657,8 @@
       document
         .getElementById("resetFilterBtn")
         .addEventListener("click", () => {
-          resetFilters();
-        });
+        resetFilters();
+      });
     });
   </script>
 </body>
