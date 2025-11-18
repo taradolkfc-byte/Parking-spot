@@ -106,6 +106,25 @@
       border-radius: 999px;
       font-size: 11px;
     }
+
+    /* กล่องสรุปจอดนอกจุด */
+    .summary-box {
+      background: white;
+      padding: 6px 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      max-width: 230px;
+      margin-top: 40px; /* ขยับลงมาจากปุ่มซูมเล็กน้อย */
+    }
+    .summary-box-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .summary-item {
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -163,7 +182,6 @@
     const PARKING_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
-    // ✅ ชีต Ref ใหม่
     const REF_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
 
@@ -188,9 +206,10 @@
 
     let rawData = [];
     let parkingData = [];
-    let refData = [];   // ✅ เก็บข้อมูล Ref
+    let refData = [];
 
     let map, markersLayer, parkingLayer;
+    let summaryControl;  // Leaflet control สำหรับกล่องสรุป
     const licenseColorMap = {};
 
     const colorPalette = [
@@ -258,7 +277,7 @@
       return false;
     }
 
-    // ✅ เช็คว่า cluster อยู่ใกล้จุดใน Ref <= 400 m หรือไม่
+    // Ref zone 400 m
     function isInRefZone(lat, lng) {
       if (!refData.length) return false;
       for (const row of refData) {
@@ -267,9 +286,7 @@
         const refLng = parseFloat(row["ลอง"] || row["Lng"] || vals[2]);
         if (isNaN(refLat) || isNaN(refLng)) continue;
         const d = haversineMeters(lat, lng, refLat, refLng);
-        if (d <= 400) {
-          return true; // อยู่ในรัศมี 400 ม.
-        }
+        if (d <= 400) return true;
       }
       return false;
     }
@@ -414,6 +431,19 @@
       }).addTo(map);
       markersLayer = L.layerGroup().addTo(map);
       parkingLayer = L.layerGroup().addTo(map);
+
+      // กล่องสรุปจอดนอกจุด ทางซ้ายใต้ zoom
+      summaryControl = L.control({ position: "topleft" });
+      summaryControl.onAdd = function () {
+        const div = L.DomUtil.create("div", "summary-box");
+        div.id = "summaryBox";
+        div.innerHTML = `
+          <div class="summary-box-title">สรุปจอดนอกจุด</div>
+          <div>กรุณาเลือกช่วงวันเวลาก่อน</div>
+        `;
+        return div;
+      };
+      summaryControl.addTo(map);
     }
 
     function clusterByRadius(data, radiusMeters = 300) {
@@ -499,6 +529,46 @@
       });
     }
 
+    function formatDateInputToDDMMYYYY(inputVal) {
+      if (!inputVal) return "-";
+      const d = new Date(inputVal);
+      if (isNaN(d)) return "-";
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    function updateSummaryBox(summaryCounts, startInput, endInput) {
+      const box = document.getElementById("summaryBox");
+      if (!box) return;
+
+      const startStr = formatDateInputToDDMMYYYY(startInput);
+      const endStr = formatDateInputToDDMMYYYY(endInput);
+
+      let html = `<div class="summary-box-title">สรุปจอดนอกจุด</div>`;
+
+      if (!startInput && !endInput) {
+        html += `<div>กรุณาเลือกช่วงวันเวลาก่อน</div>`;
+      } else if (Object.keys(summaryCounts).length === 0) {
+        html += `<div>ไม่พบจุดจอดนอกจุดในช่วง ${startStr} - ${endStr}</div>`;
+      } else {
+        html += `<div style="margin-bottom:4px;">ช่วง ${startStr} - ${endStr}</div>`;
+        Object.keys(summaryCounts)
+          .sort()
+          .forEach(lic => {
+            html += `
+              <div class="summary-item">
+                ทะเบียน ${lic}<br/>
+                จอดนอกจุด ${summaryCounts[lic]} จุด
+              </div>
+            `;
+          });
+      }
+
+      box.innerHTML = html;
+    }
+
     function renderMap() {
       markersLayer.clearLayers();
 
@@ -514,11 +584,13 @@
       const legendDivOld = document.querySelector(".legend-container");
       if (legendDivOld) legendDivOld.remove();
 
+      // ถ้ายังไม่เลือกวัน → อัปเดต summary แล้ว return
       if (!startInput && !endInput) {
         if (bounds.length > 0) {
           map.fitBounds(bounds, { padding: [40, 40] });
         }
         updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐาน)");
+        updateSummaryBox({}, startInput, endInput);
         return;
       }
 
@@ -528,6 +600,7 @@
           map.fitBounds(bounds, { padding: [40, 40] });
         }
         updateStatus("ไม่พบข้อมูลจุดจอดตามเงื่อนไขที่เลือก (แสดงเฉพาะหมุด parking)");
+        updateSummaryBox({}, startInput, endInput);
         return;
       }
 
@@ -535,12 +608,13 @@
 
       const licensesInView = new Set();
       let totalPoints = 0;
+      const summaryCounts = {}; // นับจำนวน "จุดจอดนอกจุด" ต่อทะเบียน
 
       clusters.forEach(cluster => {
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
-        // ✅ ถ้า cluster นี้อยู่ใกล้จุดใน Ref <= 400 เมตร ให้ตัดทิ้งเลย
+        // ตัด cluster ที่อยู่ใน Ref zone (ถือว่า "ในจุดมาตรฐาน")
         if (isInRefZone(lat, lng)) {
           return;
         }
@@ -565,6 +639,15 @@
         const locationText = first[COLUMN.locationText] || "-";
         const distance = first[COLUMN.distance] || "-";
         const org = first[COLUMN.org] || "-";
+
+        // นับจำนวนจุดนอกจุดต่อทะเบียน (1 cluster = 1 จุด)
+        if (licenseSet.size === 0) {
+          summaryCounts["ไม่ทราบทะเบียน"] = (summaryCounts["ไม่ทราบทะเบียน"] || 0) + 1;
+        } else {
+          licenseSet.forEach(lic => {
+            summaryCounts[lic] = (summaryCounts[lic] || 0) + 1;
+          });
+        }
 
         const firstLicense = first[COLUMN.license] || licenseText;
         const color = getColorForLicense(firstLicense);
@@ -604,7 +687,10 @@
         map.fitBounds(bounds, { padding: [40, 40] });
       }
 
-      updateStatus(`จำนวนกลุ่มจุดจอด: ${clusters.length.toLocaleString()} กลุ่ม (แสดงจริงหลังตัด Ref แล้ว ${totalPoints.toLocaleString()} จุดข้อมูล)`);
+      updateStatus(`จำนวนกลุ่มจุดจอด (ก่อนตัด Ref): ${clusters.length.toLocaleString()} กลุ่ม | แสดงจริง (จอดนอกจุด) ${Object.values(summaryCounts).reduce((a,b)=>a+b,0).toLocaleString()} จุด`);
+
+      // อัปเดตกล่องสรุป
+      updateSummaryBox(summaryCounts, startInput, endInput);
 
       const legend = L.control({ position: "topright" });
       legend.onAdd = function () {
@@ -649,7 +735,6 @@
       });
     }
 
-    // ✅ โหลดข้อมูล Ref
     function loadRefData(callback) {
       Papa.parse(REF_CSV_URL, {
         download: true,
@@ -676,7 +761,6 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
-          // โหลด parking -> แล้วค่อยโหลด Ref -> แล้วค่อย render
           loadParkingData(() => {
             loadRefData(() => {
               updateStatus(
