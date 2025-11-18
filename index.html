@@ -237,12 +237,10 @@
 
     function getColorForLicense(license) {
       if (!license) return "#000000";
-      // ถ้าอยู่ใน FIXED_LICENSE_COLORS ให้ใช้สีนี้เสมอ
       if (FIXED_LICENSE_COLORS[license]) {
         licenseColorMap[license] = FIXED_LICENSE_COLORS[license];
         return FIXED_LICENSE_COLORS[license];
       }
-      // ทะเบียนอื่นๆ จับคู่จากพาเลต
       if (!licenseColorMap[license]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
         licenseColorMap[license] = colorPalette[index];
@@ -274,9 +272,7 @@
       return R * c;
     }
 
-    const TRAFFIC_LIGHT_ZONES = [
-      // { lat: 16.40075, lng: 103.36453, radiusMeters: 80 },
-    ];
+    const TRAFFIC_LIGHT_ZONES = [];
 
     function isInTrafficLightZone(lat, lng) {
       for (const z of TRAFFIC_LIGHT_ZONES) {
@@ -400,7 +396,7 @@
 
       while (driverSelect.options.length > 1) {
         driverSelect.remove(1);
-      });
+      }
 
       Array.from(driverSet).sort().forEach(drv => {
         const opt = document.createElement("option");
