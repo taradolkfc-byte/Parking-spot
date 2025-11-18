@@ -111,7 +111,7 @@
     .summary-box {
       background: white;
       padding: 10px 12px;
-      font-size: 13px;
+      font-size: 14px;          /* ↑ ใหญ่ขึ้นนิดนึง */
       line-height: 1.6;
       border-radius: 8px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -120,7 +120,7 @@
     }
     .summary-box-title {
       font-weight: 700;
-      font-size: 14px;
+      font-size: 15px;          /* ↑ ใหญ่ขึ้นนิดนึง */
       margin-bottom: 8px;
     }
     .summary-item {
@@ -215,7 +215,7 @@
 
     // สีคงที่ตามทะเบียน
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#ef4444", // แดง
+      "70-1873-63": "#ff0000", // แดงสด
       "70-1927-64": "#2563eb", // น้ำเงิน
       "70-2484-70": "#eab308"  // เหลือง
     };
@@ -400,7 +400,7 @@
 
       while (driverSelect.options.length > 1) {
         driverSelect.remove(1);
-      }
+      });
 
       Array.from(driverSet).sort().forEach(drv => {
         const opt = document.createElement("option");
@@ -566,11 +566,13 @@
           .forEach(lic => {
             const color = getColorForLicense(lic);
             html += `
-              <div class="summary-item">
-                <span style="color:${color}; font-weight:700;">
+              <div class="summary-item" style="color:${color};">
+                <div style="font-weight:700; font-size:15px;">
                   ทะเบียน ${lic}
-                </span><br/>
-                จอดนอกจุด ${summaryCounts[lic]} จุด
+                </div>
+                <div style="font-size:12px;">
+                  จอดนอกจุด ${summaryCounts[lic]} จุด
+                </div>
               </div>
             `;
           });
