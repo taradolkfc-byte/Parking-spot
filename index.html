@@ -111,7 +111,7 @@
     .summary-box {
       background: white;
       padding: 10px 12px;
-      font-size: 14px;          /* ↑ ใหญ่ขึ้นนิดนึง */
+      font-size: 14px;
       line-height: 1.6;
       border-radius: 8px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -120,7 +120,7 @@
     }
     .summary-box-title {
       font-weight: 700;
-      font-size: 15px;          /* ↑ ใหญ่ขึ้นนิดนึง */
+      font-size: 15px;
       margin-bottom: 8px;
     }
     .summary-item {
@@ -282,6 +282,7 @@
       return false;
     }
 
+    // ✅ ใช้ข้อมูล Ref sheet ตัดจุดที่อยู่ในรัศมี 300 เมตร
     function isInRefZone(lat, lng) {
       if (!refData.length) return false;
       for (const row of refData) {
@@ -290,7 +291,7 @@
         const refLng = parseFloat(row["ลอง"] || row["Lng"] || vals[2]);
         if (isNaN(refLat) || isNaN(refLng)) continue;
         const d = haversineMeters(lat, lng, refLat, refLng);
-        if (d <= 400) return true;
+        if (d <= 300) return true;   // <-- ปรับจาก 400 เป็น 300 เมตร
       }
       return false;
     }
@@ -620,6 +621,7 @@
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
+        // ✅ ถ้า Center อยู่ในรัศมี 300 ม. จาก Ref ให้ข้าม
         if (isInRefZone(lat, lng)) {
           return;
         }
