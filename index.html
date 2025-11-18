@@ -163,6 +163,10 @@
     const PARKING_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
+    // ✅ ชีต Ref ใหม่
+    const REF_CSV_URL =
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
+
     const COLUMN = {
       license: "ทะเบียน",
       datetime: "วันและเวลา",
@@ -184,6 +188,7 @@
 
     let rawData = [];
     let parkingData = [];
+    let refData = [];   // ✅ เก็บข้อมูล Ref
 
     let map, markersLayer, parkingLayer;
     const licenseColorMap = {};
@@ -249,6 +254,22 @@
       for (const z of TRAFFIC_LIGHT_ZONES) {
         const d = haversineMeters(lat, lng, z.lat, z.lng);
         if (d <= z.radiusMeters) return true;
+      }
+      return false;
+    }
+
+    // ✅ เช็คว่า cluster อยู่ใกล้จุดใน Ref <= 400 m หรือไม่
+    function isInRefZone(lat, lng) {
+      if (!refData.length) return false;
+      for (const row of refData) {
+        const vals = Object.values(row);
+        const refLat = parseFloat(row["ละ"] || row["Lat"] || vals[1]);
+        const refLng = parseFloat(row["ลอง"] || row["Lng"] || vals[2]);
+        if (isNaN(refLat) || isNaN(refLng)) continue;
+        const d = haversineMeters(lat, lng, refLat, refLng);
+        if (d <= 400) {
+          return true; // อยู่ในรัศมี 400 ม.
+        }
       }
       return false;
     }
@@ -420,7 +441,6 @@
       return clusters;
     }
 
-    /********* แสดงหมุด parking ให้เด่น + ใช้คอลัมน์ A,B,C เป็นหลัก *********/
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -436,7 +456,6 @@
       });
 
       parkingData.forEach(row => {
-        // ดึงตามชื่อหัวคอลัมน์ก่อน ถ้าไม่เจอให้ fallback เป็นลำดับคอลัมน์ A,B,C
         const vals = Object.values(row);
 
         const name =
@@ -520,6 +539,12 @@
       clusters.forEach(cluster => {
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
+
+        // ✅ ถ้า cluster นี้อยู่ใกล้จุดใน Ref <= 400 เมตร ให้ตัดทิ้งเลย
+        if (isInRefZone(lat, lng)) {
+          return;
+        }
+
         totalPoints += rows.length;
 
         const sortedRows = rows
@@ -579,7 +604,7 @@
         map.fitBounds(bounds, { padding: [40, 40] });
       }
 
-      updateStatus(`จำนวนกลุ่มจุดจอด: ${clusters.length.toLocaleString()} กลุ่ม (รวม ${totalPoints.toLocaleString()} จุดข้อมูล)`);
+      updateStatus(`จำนวนกลุ่มจุดจอด: ${clusters.length.toLocaleString()} กลุ่ม (แสดงจริงหลังตัด Ref แล้ว ${totalPoints.toLocaleString()} จุดข้อมูล)`);
 
       const legend = L.control({ position: "topright" });
       legend.onAdd = function () {
@@ -624,6 +649,24 @@
       });
     }
 
+    // ✅ โหลดข้อมูล Ref
+    function loadRefData(callback) {
+      Papa.parse(REF_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function (results) {
+          refData = results.data || [];
+          if (callback) callback();
+        },
+        error: function (err) {
+          console.error("Ref sheet error:", err);
+          refData = [];
+          if (callback) callback();
+        }
+      });
+    }
+
     function loadData() {
       updateStatus("กำลังโหลดข้อมูลจาก Google Sheets...");
 
@@ -633,10 +676,15 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
+          // โหลด parking -> แล้วค่อยโหลด Ref -> แล้วค่อย render
           loadParkingData(() => {
-            updateStatus(`โหลดข้อมูลสำเร็จ: จุดจอด ${rawData.length.toLocaleString()} แถว, parking ${parkingData.length.toLocaleString()} จุด`);
-            populateFilters();
-            renderMap();
+            loadRefData(() => {
+              updateStatus(
+                `โหลดข้อมูลสำเร็จ: จุดจอด ${rawData.length.toLocaleString()} แถว, parking ${parkingData.length.toLocaleString()} จุด, Ref ${refData.length.toLocaleString()} จุด`
+              );
+              populateFilters();
+              renderMap();
+            });
           });
         },
         error: function (err) {
@@ -657,8 +705,8 @@
       document
         .getElementById("resetFilterBtn")
         .addEventListener("click", () => {
-        resetFilters();
-      });
+          resetFilters();
+        });
     });
   </script>
 </body>
