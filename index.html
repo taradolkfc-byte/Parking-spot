@@ -75,21 +75,21 @@
 
     .legend {
       background: white;
-      padding: 6px 8px;
-      font-size: 11px;
-      line-height: 1.4;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.5;
       border-radius: 4px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
     .legend-item {
       display: flex;
       align-items: center;
-      gap: 4px;
-      margin-bottom: 3px;
+      gap: 6px;
+      margin-bottom: 4px;
     }
     .legend-color {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       border: 1px solid #4b5563;
     }
@@ -102,28 +102,29 @@
       transform: translateX(-50%);
       background: rgba(31,41,55,0.85);
       color: #e5e7eb;
-      padding: 4px 8px;
+      padding: 6px 10px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
     }
 
-    /* กล่องสรุปจอดนอกจุด */
+    /* กล่องสรุปจอดนอกจุด – ใหญ่ขึ้น + ฟอนต์ใหญ่ขึ้น */
     .summary-box {
       background: white;
-      padding: 6px 8px;
-      font-size: 11px;
-      line-height: 1.4;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-      max-width: 230px;
-      margin-top: 40px; /* ขยับลงมาจากปุ่มซูมเล็กน้อย */
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      max-width: 320px;
+      margin-top: 48px;
     }
     .summary-box-title {
-      font-weight: 600;
-      margin-bottom: 4px;
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 8px;
     }
     .summary-item {
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
   </style>
 </head>
@@ -209,17 +210,23 @@
     let refData = [];
 
     let map, markersLayer, parkingLayer;
-    let summaryControl;  // Leaflet control สำหรับกล่องสรุป
+    let summaryControl;
     const licenseColorMap = {};
 
+    // สีคงที่ตามทะเบียน
+    const FIXED_LICENSE_COLORS = {
+      "70-1873-63": "#ef4444", // แดง
+      "70-1927-64": "#2563eb", // น้ำเงิน
+      "70-2484-70": "#eab308"  // เหลือง
+    };
+
+    // พาเลตสำหรับทะเบียนอื่นๆ (ถ้ามี)
     const colorPalette = [
-      "#ef4444",
-      "#3b82f6",
-      "#f97316",
-      "#a855f7",
-      "#eab308",
       "#ec4899",
       "#6366f1",
+      "#f97316",
+      "#22c55e",
+      "#a855f7",
       "#f59e0b",
       "#fb7185"
     ];
@@ -230,10 +237,12 @@
 
     function getColorForLicense(license) {
       if (!license) return "#000000";
-      if (license === "70-2484-70") {
-        licenseColorMap[license] = "#eab308";
-        return "#eab308";
+      // ถ้าอยู่ใน FIXED_LICENSE_COLORS ให้ใช้สีนี้เสมอ
+      if (FIXED_LICENSE_COLORS[license]) {
+        licenseColorMap[license] = FIXED_LICENSE_COLORS[license];
+        return FIXED_LICENSE_COLORS[license];
       }
+      // ทะเบียนอื่นๆ จับคู่จากพาเลต
       if (!licenseColorMap[license]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
         licenseColorMap[license] = colorPalette[index];
@@ -256,7 +265,7 @@
       const R = 6371000;
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
+      const dLon = toRad(lat2 - lon1);
       const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
@@ -277,7 +286,6 @@
       return false;
     }
 
-    // Ref zone 400 m
     function isInRefZone(lat, lng) {
       if (!refData.length) return false;
       for (const row of refData) {
@@ -432,7 +440,6 @@
       markersLayer = L.layerGroup().addTo(map);
       parkingLayer = L.layerGroup().addTo(map);
 
-      // กล่องสรุปจอดนอกจุด ทางซ้ายใต้ zoom
       summaryControl = L.control({ position: "topleft" });
       summaryControl.onAdd = function () {
         const div = L.DomUtil.create("div", "summary-box");
@@ -479,9 +486,9 @@
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize: [26, 42],
-        iconAnchor: [13, 42],
-        popupAnchor: [0, -38],
+        iconSize: [28, 44],
+        iconAnchor: [14, 44],
+        popupAnchor: [0, -32],
         shadowSize: [41, 41]
       });
 
@@ -510,7 +517,7 @@
         const note = row[PARKING_COLUMN.note] || "";
 
         const popupHtml = `
-          <div style="font-size:12px;">
+          <div style="font-size:13px;">
             <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
             ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
             <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
@@ -553,13 +560,16 @@
       } else if (Object.keys(summaryCounts).length === 0) {
         html += `<div>ไม่พบจุดจอดนอกจุดในช่วง ${startStr} - ${endStr}</div>`;
       } else {
-        html += `<div style="margin-bottom:4px;">ช่วง ${startStr} - ${endStr}</div>`;
+        html += `<div style="margin-bottom:8px;">ช่วง ${startStr} - ${endStr}</div>`;
         Object.keys(summaryCounts)
           .sort()
           .forEach(lic => {
+            const color = getColorForLicense(lic);
             html += `
               <div class="summary-item">
-                ทะเบียน ${lic}<br/>
+                <span style="color:${color}; font-weight:700;">
+                  ทะเบียน ${lic}
+                </span><br/>
                 จอดนอกจุด ${summaryCounts[lic]} จุด
               </div>
             `;
@@ -584,7 +594,6 @@
       const legendDivOld = document.querySelector(".legend-container");
       if (legendDivOld) legendDivOld.remove();
 
-      // ถ้ายังไม่เลือกวัน → อัปเดต summary แล้ว return
       if (!startInput && !endInput) {
         if (bounds.length > 0) {
           map.fitBounds(bounds, { padding: [40, 40] });
@@ -607,19 +616,15 @@
       const clusters = clusterByRadius(filtered, 300);
 
       const licensesInView = new Set();
-      let totalPoints = 0;
-      const summaryCounts = {}; // นับจำนวน "จุดจอดนอกจุด" ต่อทะเบียน
+      const summaryCounts = {};
 
       clusters.forEach(cluster => {
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
-        // ตัด cluster ที่อยู่ใน Ref zone (ถือว่า "ในจุดมาตรฐาน")
         if (isInRefZone(lat, lng)) {
           return;
         }
-
-        totalPoints += rows.length;
 
         const sortedRows = rows
           .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
@@ -640,7 +645,6 @@
         const distance = first[COLUMN.distance] || "-";
         const org = first[COLUMN.org] || "-";
 
-        // นับจำนวนจุดนอกจุดต่อทะเบียน (1 cluster = 1 จุด)
         if (licenseSet.size === 0) {
           summaryCounts["ไม่ทราบทะเบียน"] = (summaryCounts["ไม่ทราบทะเบียน"] || 0) + 1;
         } else {
@@ -654,7 +658,7 @@
         licensesInView.add(firstLicense);
 
         const marker = L.circleMarker([lat, lng], {
-          radius: 7,
+          radius: 9,
           color: "#000000",
           weight: 1.5,
           fillColor: color,
@@ -662,7 +666,7 @@
         });
 
         const popupHtml = `
-          <div style="font-size:12px;">
+          <div style="font-size:13px;">
             <strong>ทะเบียน:</strong> ${licenseText}<br/>
             <strong>พขร:</strong> ${driverText}<br/>
             <strong>สังกัด:</strong> ${org}<br/>
@@ -687,9 +691,11 @@
         map.fitBounds(bounds, { padding: [40, 40] });
       }
 
-      updateStatus(`จำนวนกลุ่มจุดจอด (ก่อนตัด Ref): ${clusters.length.toLocaleString()} กลุ่ม | แสดงจริง (จอดนอกจุด) ${Object.values(summaryCounts).reduce((a,b)=>a+b,0).toLocaleString()} จุด`);
+      const shownCount = Object.values(summaryCounts).reduce((a, b) => a + b, 0);
+      updateStatus(
+        `จำนวนจุดจอดนอกจุด (หลังตัด Ref): ${shownCount.toLocaleString()} จุด`
+      );
 
-      // อัปเดตกล่องสรุป
       updateSummaryBox(summaryCounts, startInput, endInput);
 
       const legend = L.control({ position: "topright" });
