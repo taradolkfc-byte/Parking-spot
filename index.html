@@ -107,7 +107,6 @@
       font-size: 12px;
     }
 
-    /* กล่องสรุปจอดนอกจุด – ใหญ่ขึ้น + ฟอนต์ใหญ่ขึ้น */
     .summary-box {
       background: white;
       padding: 10px 12px;
@@ -173,7 +172,7 @@
     crossorigin=""
   ></script>
 
-  <!-- PapaParse สำหรับอ่าน CSV -->
+  <!-- PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -181,10 +180,10 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
     const PARKING_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1061454761";
 
     const COLUMN = {
       license: "ทะเบียน",
@@ -207,20 +206,18 @@
 
     let rawData = [];
     let parkingData = [];
-    let refData = [];
+    let refData = [];  // {lat, lng}
 
     let map, markersLayer, parkingLayer;
     let summaryControl;
     const licenseColorMap = {};
 
-    // สีคงที่ตามทะเบียน
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#ff0000", // แดงสด
-      "70-1927-64": "#2563eb", // น้ำเงิน
-      "70-2484-70": "#eab308"  // เหลือง
+      "70-1873-63": "#ff0000",
+      "70-1927-64": "#2563eb",
+      "70-2484-70": "#eab308"
     };
 
-    // พาเลตสำหรับทะเบียนอื่นๆ (ถ้ามี)
     const colorPalette = [
       "#ec4899",
       "#6366f1",
@@ -263,7 +260,7 @@
       const R = 6371000;
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lat2 - lon1);
+      const dLon = toRad(lon2 - lon1);
       const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
@@ -282,20 +279,54 @@
       return false;
     }
 
-    // ✅ ใช้ข้อมูล Ref sheet ตัดจุดที่อยู่ในรัศมี 300 เมตร
+    // helper หาพิกัดจากแถวของ Ref sheet
+    function parseRefLatLng(row) {
+      let lat = NaN;
+      let lng = NaN;
+
+      for (const [key, value] of Object.entries(row)) {
+        const lowerKey = key.toLowerCase();
+        if (Number.isNaN(lat) && (lowerKey.includes("ละ") || lowerKey.includes("lat"))) {
+          const n = parseFloat(value);
+          if (!Number.isNaN(n)) lat = n;
+        }
+        if (Number.isNaN(lng) && (lowerKey.includes("ลอง") || lowerKey.includes("lng") || lowerKey.includes("lon"))) {
+          const n = parseFloat(value);
+          if (!Number.isNaN(n)) lng = n;
+        }
+      }
+
+      // fallback เดาจากค่าตัวเลขที่ดูเป็น lat/lng ไทย
+      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        const nums = Object.values(row)
+          .map(v => parseFloat(v))
+          .filter(n => !Number.isNaN(n));
+
+        for (let i = 0; i < nums.length - 1; i++) {
+          const a = nums[i];
+          const b = nums[i + 1];
+          if (a >= 5 && a <= 25 && b >= 95 && b <= 110) {
+            lat = a;
+            lng = b;
+            break;
+          }
+        }
+      }
+
+      return { lat, lng };
+    }
+
+    // ใช้ refData เช็กว่าจุดอยู่ในรัศมี 300 ม. จาก Ref sheet หรือไม่
     function isInRefZone(lat, lng) {
       if (!refData.length) return false;
-      for (const row of refData) {
-        const vals = Object.values(row);
-        const refLat = parseFloat(row["ละ"] || row["Lat"] || vals[1]);
-        const refLng = parseFloat(row["ลอง"] || row["Lng"] || vals[2]);
-        if (isNaN(refLat) || isNaN(refLng)) continue;
-        const d = haversineMeters(lat, lng, refLat, refLng);
-        if (d <= 300) return true;   // <-- ปรับจาก 400 เป็น 300 เมตร
+      for (const p of refData) {
+        const d = haversineMeters(lat, lng, p.lat, p.lng);
+        if (d <= 300) return true;
       }
       return false;
     }
 
+    // ==== FILTER หลัก (ตัด Ref zone เรียบร้อย) ====
     function getFilteredData() {
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
@@ -309,7 +340,12 @@
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return false;
+
+        // ไฟแดง (ถ้าเคยกำหนด)
         if (isInTrafficLightZone(lat, lng)) return false;
+
+        // ตัดจุดที่อยู่ในรัศมี 300 ม. จาก Ref sheet
+        if (isInRefZone(lat, lng)) return false;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
         if ((start || end) && !dt) return false;
@@ -340,6 +376,7 @@
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return;
         if (isInTrafficLightZone(lat, lng)) return;
+        if (isInRefZone(lat, lng)) return;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
         if ((start || end) && !dt) return;
@@ -385,6 +422,7 @@
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return;
         if (isInTrafficLightZone(lat, lng)) return;
+        if (isInRefZone(lat, lng)) return;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
         if ((start || end) && !dt) return;
@@ -621,7 +659,7 @@
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
-        // ✅ ถ้า Center อยู่ในรัศมี 300 ม. จาก Ref ให้ข้าม
+        // ดักซ้ำอีกชั้น (เผื่ออนาคตมีการเปลี่ยน getFilteredData)
         if (isInRefZone(lat, lng)) {
           return;
         }
@@ -741,13 +779,21 @@
       });
     }
 
+    // โหลด Ref sheet แล้ว map เป็น array ของ {lat,lng}
     function loadRefData(callback) {
       Papa.parse(REF_CSV_URL, {
         download: true,
         header: true,
         skipEmptyLines: true,
         complete: function (results) {
-          refData = results.data || [];
+          const rows = results.data || [];
+          refData = [];
+          rows.forEach(row => {
+            const { lat, lng } = parseRefLatLng(row);
+            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+              refData.push({ lat, lng });
+            }
+          });
           if (callback) callback();
         },
         error: function (err) {
