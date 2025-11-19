@@ -341,7 +341,7 @@
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return false;
 
-        // ไฟแดง (ถ้าเคยกำหนด)
+        // ตัดไฟแดง (ถ้าเคยกำหนด)
         if (isInTrafficLightZone(lat, lng)) return false;
 
         // ตัดจุดที่อยู่ในรัศมี 300 ม. จาก Ref sheet
@@ -513,6 +513,7 @@
       return clusters;
     }
 
+    // ✅ Parking markers: แสดงเสมอ 20 จุด, ไม่เช็ก Ref / Filter ใด ๆ
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -530,12 +531,6 @@
       parkingData.forEach(row => {
         const vals = Object.values(row);
 
-        const name =
-          row[PARKING_COLUMN.name] ||
-          row[PARKING_COLUMN.locationText] ||
-          row["ชื่อสถานที่"] ||
-          vals[0] || "-";
-
         const lat = parseFloat(
           row[PARKING_COLUMN.lat] ||
           row["ละ"] ||
@@ -547,7 +542,15 @@
           vals[2]
         );
 
+        // ❗ ไม่เช็ก isInRefZone เพื่อให้ Parking แสดงเสมอ
         if (isNaN(lat) || isNaN(lng)) return;
+
+        const name =
+          row[PARKING_COLUMN.name] ||
+          row[PARKING_COLUMN.locationText] ||
+          row["ชื่อสถานที่"] ||
+          vals[0] ||
+          "-";
 
         const note = row[PARKING_COLUMN.note] || "";
 
@@ -620,7 +623,7 @@
       markersLayer.clearLayers();
 
       const bounds = [];
-      renderParkingMarkers(bounds);
+      renderParkingMarkers(bounds); // ✅ Parking แสดงเสมอ
 
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
@@ -659,7 +662,7 @@
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
-        // ดักซ้ำอีกชั้น (เผื่ออนาคตมีการเปลี่ยน getFilteredData)
+        // ดักซ้ำอีกชั้น เฉพาะจุดจอดจริง (rawData)
         if (isInRefZone(lat, lng)) {
           return;
         }
