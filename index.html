@@ -212,9 +212,9 @@
     let summaryControl;
     const licenseColorMap = {};
 
-    // กำหนดสีทะเบียนแบบ fixed 3 คัน (แก้บล็อกนี้ตามที่ต้องการ)
+    // กำหนดสีทะเบียนแบบ fixed 3 คัน
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#cc0000",  // 🔴 แดงแบบตัวอย่าง
+      "70-1873-63": "#cc0000",  // แดงจัด
       "70-1927-64": "#1d4ed8",  // น้ำเงิน
       "70-2484-70": "#eab308"   // เหลือง
     };
@@ -235,17 +235,29 @@
       document.getElementById("statusBar").textContent = text;
     }
 
+    // ---------- NEW: helper ตัดช่องว่างทะเบียน ----------
+    function normalizeLicense(license) {
+      if (!license) return "";
+      return String(license).trim();
+    }
+
+    // ---------- UPDATED: ใช้ทะเบียนที่ trim แล้ว ----------
     function getColorForLicense(license) {
-      if (!license) return "#000000";
-      if (FIXED_LICENSE_COLORS[license]) {
-        licenseColorMap[license] = FIXED_LICENSE_COLORS[license];
-        return FIXED_LICENSE_COLORS[license];
+      const key = normalizeLicense(license);
+      if (!key) return "#000000";
+
+      // ใช้สี fixed ก่อน
+      if (FIXED_LICENSE_COLORS[key]) {
+        licenseColorMap[key] = FIXED_LICENSE_COLORS[key];
+        return FIXED_LICENSE_COLORS[key];
       }
-      if (!licenseColorMap[license]) {
+
+      // ถ้ายังไม่เคยมีสีใน map ให้ดึงจาก palette
+      if (!licenseColorMap[key]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
-        licenseColorMap[license] = colorPalette[index];
+        licenseColorMap[key] = colorPalette[index];
       }
-      return licenseColorMap[license];
+      return licenseColorMap[key];
     }
 
     function parseDateTime(str) {
@@ -534,13 +546,15 @@
       return clusters;
     }
 
+    // ---------- UPDATED: ใช้ทะเบียนที่ trim แล้วเป็น key ----------
     function computeLicenseSummary(data) {
       const result = {};
       if (!data.length) return result;
 
       const licenseMap = new Map();
       data.forEach(row => {
-        const lic = row[COLUMN.license] || "ไม่ทราบทะเบียน";
+        const rawLic = row[COLUMN.license] || "ไม่ทราบทะเบียน";
+        const lic = normalizeLicense(rawLic) || "ไม่ทราบทะเบียน";
         if (!licenseMap.has(lic)) licenseMap.set(lic, []);
         licenseMap.get(lic).push(row);
       });
@@ -788,7 +802,8 @@
 
       let shownCount = 0;
       if (licenseFilter) {
-        shownCount = licenseSummary[licenseFilter] || 0;
+        const keyFilter = normalizeLicense(licenseFilter);
+        shownCount = licenseSummary[keyFilter] || 0;
       } else {
         shownCount = Object.values(licenseSummary).reduce((a, b) => a + b, 0);
       }
@@ -815,7 +830,7 @@
             colorBox.style.backgroundColor = color;
             row.appendChild(colorBox);
             const text = document.createElement("span");
-            text.textContent = lic;
+            text.textContent = normalizeLicense(lic) || lic;
             row.appendChild(text);
             div.appendChild(row);
           });
