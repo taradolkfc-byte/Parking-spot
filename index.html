@@ -553,6 +553,66 @@
       return clusters;
     }
 
+    // ---------- helper: ดึง lat/lng ของหมุด parking ----------
+    function getParkingLatLng(row) {
+      let lat = parseFloat(
+        row[PARKING_COLUMN.lat] ??
+        row["ละ"] ??
+        row["Lat"] ??
+        row["LAT"]
+      );
+      let lng = parseFloat(
+        row[PARKING_COLUMN.lng] ??
+        row["ลอง"] ??
+        row["Lon"] ??
+        row["LON"] ??
+        row["Lng"] ??
+        row["LNG"]
+      );
+
+      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        const parsed = parseRefLatLng(row);
+        lat = parsed.lat;
+        lng = parsed.lng;
+      }
+      return { lat, lng };
+    }
+
+    // ---------- helper: หา “หมุด parking ที่ใกล้ที่สุด” ----------
+    function getNearestParking(lat, lng) {
+      if (!parkingData.length) {
+        return { name: "-", distanceMeters: NaN, row: null };
+      }
+
+      let bestRow = null;
+      let bestDist = Infinity;
+
+      parkingData.forEach(row => {
+        const { lat: plat, lng: plng } = getParkingLatLng(row);
+        if (Number.isNaN(plat) || Number.isNaN(plng)) return;
+
+        const d = haversineMeters(lat, lng, plat, plng);
+        if (d < bestDist) {
+          bestDist = d;
+          bestRow = row;
+        }
+      });
+
+      if (!bestRow || !isFinite(bestDist)) {
+        return { name: "-", distanceMeters: NaN, row: null };
+      }
+
+      const vals = Object.values(bestRow);
+      const name =
+        bestRow[PARKING_COLUMN.name] ||
+        bestRow[PARKING_COLUMN.locationText] ||
+        bestRow["ชื่อสถานที่"] ||
+        vals[0] ||
+        "-";
+
+      return { name, distanceMeters: bestDist, row: bestRow };
+    }
+
     // สรุปจำนวนจุดจอดต่อทะเบียน (ใช้ใน summary box และ status)
     function computeLicenseSummary(data) {
       const result = {};
@@ -595,7 +655,7 @@
       return result;
     }
 
-    // ✅ เวอร์ชันใหม่: อ่าน ละ/ลอง ตรง ๆ ก่อน แล้วค่อย fallback ไป parseRefLatLng
+    // เวอร์ชันใหม่ของหมุด parking
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -611,29 +671,7 @@
       });
 
       parkingData.forEach(row => {
-        // พยายามอ่านจากคอลัมน์ตาม PARKING_COLUMN ก่อน (ละ / ลอง)
-        let lat = parseFloat(
-          row[PARKING_COLUMN.lat] ??
-          row["ละ"] ??
-          row["Lat"] ??
-          row["LAT"]
-        );
-        let lng = parseFloat(
-          row[PARKING_COLUMN.lng] ??
-          row["ลอง"] ??
-          row["Lon"] ??
-          row["LON"] ??
-          row["Lng"] ??
-          row["LNG"]
-        );
-
-        // ถ้าอ่านไม่ได้จริง ๆ ค่อย fallback ไปใช้ parseRefLatLng
-        if (Number.isNaN(lat) || Number.isNaN(lng)) {
-          const parsed = parseRefLatLng(row);
-          lat = parsed.lat;
-          lng = parsed.lng;
-        }
-
+        const { lat, lng } = getParkingLatLng(row);
         if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
         const vals = Object.values(row);
@@ -789,8 +827,11 @@
         const driverText  = Array.from(driverSet).join(", ") || "-";
 
         const locationText = first[COLUMN.locationText] || "-";
-        const distance     = first[COLUMN.distance]     || "-";
         const org          = first[COLUMN.org]          || "-";
+
+        // 🔍 หา “หมุด parking ใกล้สุด” เพื่อนำชื่อมาแสดง
+        const nearest = getNearestParking(lat, lng);
+        const nearestName = nearest.name;
 
         const firstLicense = first[COLUMN.license] || licenseText;
         const color = getColorForLicense(firstLicense);
@@ -813,8 +854,7 @@
             <strong>จำนวนจุดในรัศมีนี้:</strong> ${rows.length} จุด<br/>
             <strong>เวลาเริ่มต้น:</strong> ${startTime}<br/>
             <strong>เวลาสิ้นสุด:</strong> ${endTime}<br/>
-            <strong>ตัวอย่างระยะห่างจุดใกล้สุด:</strong> ${distance}<br/>
-            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+            <strong>ระยะห่างจุดใกล้สุด:</strong> ${nearestName}<br/>
             <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
               เปิดใน Google Maps
             </a>
@@ -989,8 +1029,10 @@
         const driverText  = Array.from(driverSet).join(", ") || "-";
 
         const locationText = first[COLUMN.locationText] || "-";
-        const distance     = first[COLUMN.distance]     || "-";
         const org          = first[COLUMN.org]          || "-";
+
+        const nearest = getNearestParking(lat, lng);
+        const nearestName = nearest.name;
 
         const firstLicense = normalizeLicense(first[COLUMN.license] || licenseText);
 
@@ -1002,7 +1044,7 @@
           driverText,
           org,
           locationText,
-          distance,
+          nearestName,
           startTime,
           endTime,
           firstLicense: firstLicense || licenseText
@@ -1054,7 +1096,7 @@
         "จำนวนจุดในคลัสเตอร์",
         "เวลาเริ่มต้น",
         "เวลาสิ้นสุด",
-        "ตัวอย่างระยะห่างจุดใกล้สุด"
+        "ระยะห่างจุดใกล้สุด"
       ];
 
       const rows = records.map(r => [
@@ -1067,7 +1109,7 @@
         r.rowsCount,
         r.startTime,
         r.endTime,
-        r.distance
+        r.nearestName
       ]);
 
       let csv = "\uFEFF" + header.map(escapeCSV).join(",") + "\n";
@@ -1114,7 +1156,7 @@
             <td style="text-align:right;">${r.rowsCount}</td>
             <td>${r.startTime}</td>
             <td>${r.endTime}</td>
-            <td>${r.distance}</td>
+            <td>${r.nearestName}</td>
           </tr>
         `;
       });
@@ -1152,7 +1194,7 @@
                 <th>จำนวนจุดในคลัสเตอร์</th>
                 <th>เวลาเริ่มต้น</th>
                 <th>เวลาสิ้นสุด</th>
-                <th>ตัวอย่างระยะห่างจุดใกล้สุด</th>
+                <th>ระยะห่างจุดใกล้สุด</th>
               </tr>
             </thead>
             <tbody>
