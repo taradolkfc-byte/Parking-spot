@@ -212,10 +212,11 @@
     let summaryControl;
     const licenseColorMap = {};
 
+    // กำหนดสีทะเบียนแบบ fixed 3 คัน  // NEW
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#ff0000",
-      "70-1927-64": "#2563eb",
-      "70-2484-70": "#eab308"
+      "70-1873-63": "#7f1d1d",  // แดงเลือดหมู
+      "70-1927-64": "#1d4ed8",  // น้ำเงิน
+      "70-2484-70": "#eab308"   // เหลือง
     };
 
     const colorPalette = [
@@ -227,6 +228,9 @@
       "#f59e0b",
       "#fb7185"
     ];
+
+    // ใช้ร่วมกันทุกที่ในการตัดจอด < 3 นาที  // NEW
+    const MIN_STOP_MS = 3 * 60 * 1000;
 
     function updateStatus(text) {
       document.getElementById("statusBar").textContent = text;
@@ -296,7 +300,6 @@
         }
       }
 
-      // fallback เดาจากค่าตัวเลขที่ดูเป็น lat/lng ไทย
       if (Number.isNaN(lat) || Number.isNaN(lng)) {
         const nums = Object.values(row)
           .map(v => parseFloat(v))
@@ -341,10 +344,7 @@
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return false;
 
-        // ตัดไฟแดง (ถ้าเคยกำหนด)
         if (isInTrafficLightZone(lat, lng)) return false;
-
-        // ตัดจุดที่อยู่ในรัศมี 300 ม. จาก Ref sheet
         if (isInRefZone(lat, lng)) return false;
 
         const dt = parseDateTime(row[COLUMN.datetime]);
@@ -488,14 +488,11 @@
       summaryControl.addTo(map);
     }
 
-    // ✅ clusterByRadius เวอร์ชันใหม่: ดูทั้งระยะทาง + เวลา (ไม่เกิน 20 ชม.)
+    // clusterByRadius: ดูทั้งระยะทาง + เวลา (ไม่เกิน 20 ชม.)
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
-
-      // จำกัดช่วงเวลาสูงสุดที่ถือว่ายังเป็นคลัสเตอร์เดียวกัน (20 ชั่วโมง)
       const MAX_CLUSTER_SPAN_MS = 20 * 60 * 60 * 1000; // 20 ชม.
 
-      // เตรียมข้อมูล: ผูกแถวกับ datetime แล้ว sort ตามเวลา
       const enriched = data
         .map(row => ({
           row,
@@ -512,13 +509,12 @@
 
         for (const cluster of clusters) {
           const d = haversineMeters(lat, lng, cluster.lat, cluster.lng);
-          if (d > radiusMeters) continue; // นอก 300 ม. ไม่รวม
+          if (d > radiusMeters) continue;
 
           if (!dt || !cluster.maxDt) continue;
 
-          const diffMs = dt - cluster.maxDt; // เวลาใหม่ - เวลาล่าสุดในคลัสเตอร์นี้
+          const diffMs = dt - cluster.maxDt;
 
-          // เฉพาะกรณีที่เวลายังต่อเนื่องกันไม่เกิน 20 ชม.
           if (diffMs >= 0 && diffMs <= MAX_CLUSTER_SPAN_MS) {
             found = cluster;
             break;
@@ -526,14 +522,12 @@
         }
 
         if (found) {
-          // รวมเข้า cluster เดิม
           found.rows.push(row);
           if (dt) {
             if (!found.minDt || dt < found.minDt) found.minDt = dt;
             if (!found.maxDt || dt > found.maxDt) found.maxDt = dt;
           }
         } else {
-          // สร้าง cluster ใหม่ (อาจจะเพราะคนละที่ หรือห่างกันเกิน 20 ชม.)
           clusters.push({
             lat,
             lng,
@@ -547,7 +541,48 @@
       return clusters;
     }
 
-    // ✅ Parking markers: แสดงเสมอ 20 จุด, ไม่เช็ก Ref / Filter ใด ๆ
+    // คำนวณจำนวนจุดจอดต่อทะเบียน โดยจำลองคลัสเตอร์ทีละทะเบียน  // NEW
+    function computeLicenseSummary(data) {
+      const result = {};
+      if (!data.length) return result;
+
+      const licenseMap = new Map();
+      data.forEach(row => {
+        const lic = row[COLUMN.license] || "ไม่ทราบทะเบียน";
+        if (!licenseMap.has(lic)) licenseMap.set(lic, []);
+        licenseMap.get(lic).push(row);
+      });
+
+      licenseMap.forEach((rows, lic) => {
+        const clusters = clusterByRadius(rows, 300);
+        let count = 0;
+
+        clusters.forEach(cluster => {
+          const { lat, lng, rows: cRows } = cluster;
+          if (!cRows.length) return;
+          if (isInRefZone(lat, lng)) return;
+
+          const sortedRows = cRows
+            .map(r => ({ dt: parseDateTime(r[COLUMN.datetime]) }))
+            .sort((a, b) => (a.dt || 0) - (b.dt || 0));
+
+          const firstDt = sortedRows[0].dt;
+          const lastDt  = sortedRows[sortedRows.length - 1].dt;
+
+          if (firstDt && lastDt) {
+            const diffMs = lastDt - firstDt;
+            if (diffMs < MIN_STOP_MS) return;
+          }
+          count++;
+        });
+
+        if (count > 0) result[lic] = count;
+      });
+
+      return result;
+    }
+
+    // Parking markers: แสดงเสมอ
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -563,7 +598,7 @@
       });
 
       parkingData.forEach(row => {
-        const { lat, lng } = parseRefLatLng(row); // ใช้ parser เดียวกับ Ref
+        const { lat, lng } = parseRefLatLng(row);
 
         if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
@@ -607,7 +642,6 @@
       return `${dd}/${mm}/${yyyy}`;
     }
 
-    // ✅ เวอร์ชันใหม่ของ summary ให้ตรงกับ requirement
     function updateSummaryBox(summaryCounts, startInput, endInput) {
       const box = document.getElementById("summaryBox");
       if (!box) return;
@@ -648,18 +682,19 @@
       box.innerHTML = html;
     }
 
-    // ✅ renderMap: ตัดจุดจอด < 3 นาทีออก
+    // renderMap
     function renderMap() {
       markersLayer.clearLayers();
 
       const bounds = [];
-      renderParkingMarkers(bounds); // ✅ Parking แสดงเสมอ
+      renderParkingMarkers(bounds);
 
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
 
       const startInput = document.getElementById("startDatetime").value;
       const endInput = document.getElementById("endDatetime").value;
+      const licenseFilter = document.getElementById("licenseSelect").value;
 
       const legendDivOld = document.querySelector(".legend-container");
       if (legendDivOld) legendDivOld.remove();
@@ -683,16 +718,17 @@
         return;
       }
 
+      // สรุปจำนวนจอดต่อทะเบียนด้วย logic เดียวกับที่ใช้วาด marker  // NEW
+      const licenseSummary = computeLicenseSummary(filtered);
+
       const clusters = clusterByRadius(filtered, 300);
 
       const licensesInView = new Set();
-      const summaryCounts = {};
 
       clusters.forEach(cluster => {
         const { lat, lng, rows } = cluster;
         if (!rows.length) return;
 
-        // ดักซ้ำอีกชั้น เฉพาะจุดจอดจริง (rawData)
         if (isInRefZone(lat, lng)) {
           return;
         }
@@ -710,14 +746,12 @@
         const startTime = first[COLUMN.datetime] || "-";
         const endTime   = last[COLUMN.datetime]  || "-";
 
-        // 🔹 คำนวณระยะเวลาจอด ถ้าน้อยกว่า 3 นาที => ไม่ต้องแสดง
         const startDt = firstObj.dt;
         const endDt   = lastObj.dt;
         if (startDt && endDt) {
-          const diffMs = endDt - startDt;      // หน่วยมิลลิวินาที
-          const MIN_STOP_MS = 3 * 60 * 1000;   // 3 นาที
+          const diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            return; // ข้ามคลัสเตอร์นี้ไปเลย
+            return;
           }
         }
 
@@ -730,15 +764,6 @@
         const locationText = first[COLUMN.locationText] || "-";
         const distance     = first[COLUMN.distance]     || "-";
         const org          = first[COLUMN.org]          || "-";
-
-        if (licenseSet.size === 0) {
-          summaryCounts["ไม่ทราบทะเบียน"] =
-            (summaryCounts["ไม่ทราบทะเบียน"] || 0) + 1;
-        } else {
-          licenseSet.forEach(lic => {
-            summaryCounts[lic] = (summaryCounts[lic] || 0) + 1;
-          });
-        }
 
         const firstLicense = first[COLUMN.license] || licenseText;
         const color = getColorForLicense(firstLicense);
@@ -778,12 +803,19 @@
         map.fitBounds(bounds, { padding: [40, 40] });
       }
 
-      const shownCount = Object.values(summaryCounts).reduce((a, b) => a + b, 0);
+      // ให้จำนวนจุดใน statusBar ตรงกับ summary ต่อทะเบียน  // NEW
+      let shownCount = 0;
+      if (licenseFilter) {
+        shownCount = licenseSummary[licenseFilter] || 0;
+      } else {
+        shownCount = Object.values(licenseSummary).reduce((a, b) => a + b, 0);
+      }
+
       updateStatus(
         `จำนวนจุดจอดนอกจุด (หลังตัด Ref และจอดไม่น้อยกว่า 3 นาที): ${shownCount.toLocaleString()} จุด`
       );
 
-      updateSummaryBox(summaryCounts, startInput, endInput);
+      updateSummaryBox(licenseSummary, startInput, endInput);
 
       const legend = L.control({ position: "topright" });
       legend.onAdd = function () {
@@ -818,7 +850,6 @@
         skipEmptyLines: true,
         complete: function (results) {
           parkingData = results.data || [];
-          console.log("Parking rows:", parkingData.length, parkingData[0]);
           if (callback) callback();
         },
         error: function (err) {
@@ -829,7 +860,6 @@
       });
     }
 
-    // โหลด Ref sheet แล้ว map เป็น array ของ {lat,lng}
     function loadRefData(callback) {
       Papa.parse(REF_CSV_URL, {
         download: true,
