@@ -159,6 +159,15 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
+      <!-- ปุ่ม Export ใหม่ -->
+      <div class="filter-group">
+        <label>&nbsp;</label>
+        <button id="exportExcelBtn" class="secondary">Export Excel</button>
+      </div>
+      <div class="filter-group">
+        <label>&nbsp;</label>
+        <button id="exportPdfBtn" class="secondary">Export PDF</button>
+      </div>
     </div>
   </header>
 
@@ -180,7 +189,7 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
     const PARKING_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
@@ -235,24 +244,22 @@
       document.getElementById("statusBar").textContent = text;
     }
 
-    // ---------- NEW: helper ตัดช่องว่างทะเบียน ----------
+    // helper ตัดช่องว่างทะเบียน
     function normalizeLicense(license) {
       if (!license) return "";
       return String(license).trim();
     }
 
-    // ---------- UPDATED: ใช้ทะเบียนที่ trim แล้ว ----------
+    // ใช้ทะเบียนที่ trim แล้วเลือกสี
     function getColorForLicense(license) {
       const key = normalizeLicense(license);
       if (!key) return "#000000";
 
-      // ใช้สี fixed ก่อน
       if (FIXED_LICENSE_COLORS[key]) {
         licenseColorMap[key] = FIXED_LICENSE_COLORS[key];
         return FIXED_LICENSE_COLORS[key];
       }
 
-      // ถ้ายังไม่เคยมีสีใน map ให้ดึงจาก palette
       if (!licenseColorMap[key]) {
         const index = Object.keys(licenseColorMap).length % colorPalette.length;
         licenseColorMap[key] = colorPalette[index];
@@ -546,7 +553,75 @@
       return clusters;
     }
 
-    // ---------- UPDATED: ใช้ทะเบียนที่ trim แล้วเป็น key ----------
+    // สร้าง records ที่ใช้ทั้งวาด marker และ export
+    function buildClusterRecords(filtered) {
+      const clusters = clusterByRadius(filtered, 300);
+      const records = [];
+      const licensesInView = new Set();
+
+      clusters.forEach(cluster => {
+        const { lat, lng, rows } = cluster;
+        if (!rows.length) return;
+        if (isInRefZone(lat, lng)) return;
+
+        const sortedRows = rows
+          .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
+          .sort((a, b) => (a.dt || 0) - (b.dt || 0));
+
+        const firstObj = sortedRows[0];
+        const lastObj  = sortedRows[sortedRows.length - 1];
+
+        const first = firstObj.row;
+        const last  = lastObj.row;
+
+        const startTime = first[COLUMN.datetime] || "-";
+        const endTime   = last[COLUMN.datetime]  || "-";
+
+        const startDt = firstObj.dt;
+        const endDt   = lastObj.dt;
+        if (startDt && endDt) {
+          const diffMs = endDt - startDt;
+          if (diffMs < MIN_STOP_MS) {
+            return;
+          }
+        }
+
+        const licenseSet = new Set(
+          rows.map(r => normalizeLicense(r[COLUMN.license])).filter(Boolean)
+        );
+        const driverSet  = new Set(rows.map(r => r[COLUMN.driver]).filter(Boolean));
+
+        const licenseText = Array.from(licenseSet).join(", ") || "ไม่ทราบทะเบียน";
+        const driverText  = Array.from(driverSet).join(", ") || "-";
+
+        const locationText = first[COLUMN.locationText] || "-";
+        const distance     = first[COLUMN.distance]     || "-";
+        const org          = first[COLUMN.org]          || "-";
+
+        const firstLicense = normalizeLicense(first[COLUMN.license] || licenseText);
+        const color = getColorForLicense(firstLicense || licenseText);
+        if (firstLicense) licensesInView.add(firstLicense);
+
+        records.push({
+          lat,
+          lng,
+          rowsCount: rows.length,
+          licenseText,
+          driverText,
+          org,
+          locationText,
+          distance,
+          startTime,
+          endTime,
+          color,
+          firstLicense: firstLicense || licenseText
+        });
+      });
+
+      return { records, licensesInView };
+    }
+
+    // สรุปจำนวนจุดจอดต่อทะเบียน (ใช้ใน summary box และ status)
     function computeLicenseSummary(data) {
       const result = {};
       if (!data.length) return result;
@@ -722,70 +797,30 @@
       }
 
       const licenseSummary = computeLicenseSummary(filtered);
-      const clusters = clusterByRadius(filtered, 300);
-      const licensesInView = new Set();
 
-      clusters.forEach(cluster => {
-        const { lat, lng, rows } = cluster;
-        if (!rows.length) return;
-        if (isInRefZone(lat, lng)) return;
+      const { records, licensesInView } = buildClusterRecords(filtered);
 
-        const sortedRows = rows
-          .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
-          .sort((a, b) => (a.dt || 0) - (b.dt || 0));
-
-        const firstObj = sortedRows[0];
-        const lastObj  = sortedRows[sortedRows.length - 1];
-
-        const first = firstObj.row;
-        const last  = lastObj.row;
-
-        const startTime = first[COLUMN.datetime] || "-";
-        const endTime   = last[COLUMN.datetime]  || "-";
-
-        const startDt = firstObj.dt;
-        const endDt   = lastObj.dt;
-        if (startDt && endDt) {
-          const diffMs = endDt - startDt;
-          if (diffMs < MIN_STOP_MS) {
-            return;
-          }
-        }
-
-        const licenseSet = new Set(rows.map(r => r[COLUMN.license]).filter(Boolean));
-        const driverSet  = new Set(rows.map(r => r[COLUMN.driver]).filter(Boolean));
-
-        const licenseText = Array.from(licenseSet).join(", ") || "ไม่ทราบทะเบียน";
-        const driverText  = Array.from(driverSet).join(", ") || "-";
-
-        const locationText = first[COLUMN.locationText] || "-";
-        const distance     = first[COLUMN.distance]     || "-";
-        const org          = first[COLUMN.org]          || "-";
-
-        const firstLicense = first[COLUMN.license] || licenseText;
-        const color = getColorForLicense(firstLicense);
-        licensesInView.add(firstLicense);
-
-        const marker = L.circleMarker([lat, lng], {
+      records.forEach(rec => {
+        const marker = L.circleMarker([rec.lat, rec.lng], {
           radius: 9,
           color: "#000000",
           weight: 1.5,
-          fillColor: color,
+          fillColor: rec.color,
           fillOpacity: 0.95
         });
 
         const popupHtml = `
           <div style="font-size:13px;">
-            <strong>ทะเบียน:</strong> ${licenseText}<br/>
-            <strong>พขร:</strong> ${driverText}<br/>
-            <strong>สังกัด:</strong> ${org}<br/>
-            <strong>สถานที่:</strong> ${locationText}<br/>
-            <strong>จำนวนจุดในรัศมีนี้:</strong> ${rows.length} จุด<br/>
-            <strong>เวลาเริ่มต้น:</strong> ${startTime}<br/>
-            <strong>เวลาสิ้นสุด:</strong> ${endTime}<br/>
-            <strong>ตัวอย่างระยะห่างจุดใกล้สุด:</strong> ${distance}<br/>
-            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
-            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+            <strong>ทะเบียน:</strong> ${rec.licenseText}<br/>
+            <strong>พขร:</strong> ${rec.driverText}<br/>
+            <strong>สังกัด:</strong> ${rec.org}<br/>
+            <strong>สถานที่:</strong> ${rec.locationText}<br/>
+            <strong>จำนวนจุดในรัศมีนี้:</strong> ${rec.rowsCount} จุด<br/>
+            <strong>เวลาเริ่มต้น:</strong> ${rec.startTime}<br/>
+            <strong>เวลาสิ้นสุด:</strong> ${rec.endTime}<br/>
+            <strong>ตัวอย่างระยะห่างจุดใกล้สุด:</strong> ${rec.distance}<br/>
+            <strong>Lat,Lng:</strong> ${rec.lat.toFixed(6)}, ${rec.lng.toFixed(6)}<br/>
+            <a href="https://www.google.com/maps?q=${rec.lat},${rec.lng}" target="_blank" rel="noopener noreferrer">
               เปิดใน Google Maps
             </a>
           </div>
@@ -793,7 +828,7 @@
 
         marker.bindPopup(popupHtml);
         marker.addTo(markersLayer);
-        bounds.push([lat, lng]);
+        bounds.push([rec.lat, rec.lng]);
       });
 
       if (bounds.length > 0) {
@@ -907,6 +942,175 @@
       });
     }
 
+    // ---------- Export helper ----------
+    function escapeCSV(val) {
+      if (val === null || val === undefined) return "";
+      const s = String(val).replace(/"/g, '""');
+      if (/[",\n]/.test(s)) {
+        return `"${s}"`;
+      }
+      return s;
+    }
+
+    function generateReportRecords() {
+      const startInput = document.getElementById("startDatetime").value;
+      const endInput = document.getElementById("endDatetime").value;
+
+      const filtered = getFilteredData();
+      if (!startInput && !endInput) {
+        alert("กรุณาเลือกช่วงวันเวลา (Start/End) ก่อนส่งออกข้อมูล");
+        return null;
+      }
+      if (!filtered.length) {
+        alert("ไม่พบข้อมูลจุดจอดตามเงื่อนไขที่เลือก");
+        return null;
+      }
+
+      const { records } = buildClusterRecords(filtered);
+      if (!records.length) {
+        alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และไม่น้อยกว่า 3 นาที)");
+        return null;
+      }
+
+      return {
+        records,
+        startInput,
+        endInput
+      };
+    }
+
+    function exportToExcel() {
+      const result = generateReportRecords();
+      if (!result) return;
+      const { records, startInput, endInput } = result;
+
+      const header = [
+        "ทะเบียนรถ",
+        "ชื่อ พขร",
+        "สังกัด",
+        "สถานที่",
+        "Lat",
+        "Lng",
+        "จำนวนจุดในคลัสเตอร์",
+        "เวลาเริ่มต้น",
+        "เวลาสิ้นสุด",
+        "ตัวอย่างระยะห่างจุดใกล้สุด"
+      ];
+
+      const rows = records.map(r => [
+        r.licenseText,
+        r.driverText,
+        r.org,
+        r.locationText,
+        r.lat.toFixed(6),
+        r.lng.toFixed(6),
+        r.rowsCount,
+        r.startTime,
+        r.endTime,
+        r.distance
+      ]);
+
+      let csv = "\uFEFF" + header.map(escapeCSV).join(",") + "\n";
+      csv += rows.map(row => row.map(escapeCSV).join(",")).join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      const startStr = formatDateInputToDDMMYYYY(startInput).replace(/\//g, "");
+      const endStr = formatDateInputToDDMMYYYY(endInput).replace(/\//g, "");
+      a.href = url;
+      a.download = `stops_${startStr}_${endStr}.csv`; // เปิดด้วย Excel ได้
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportToPDF() {
+      const result = generateReportRecords();
+      if (!result) return;
+      const { records, startInput, endInput } = result;
+
+      const startStr = formatDateInputToDDMMYYYY(startInput);
+      const endStr = formatDateInputToDDMMYYYY(endInput);
+
+      const win = window.open("", "_blank");
+      if (!win) {
+        alert("เบราว์เซอร์บล็อก popup กรุณาอนุญาต popup ก่อน");
+        return;
+      }
+
+      let tableRows = "";
+      records.forEach((r, idx) => {
+        tableRows += `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${r.licenseText}</td>
+            <td>${r.driverText}</td>
+            <td>${r.org}</td>
+            <td>${r.locationText}</td>
+            <td>${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</td>
+            <td style="text-align:right;">${r.rowsCount}</td>
+            <td>${r.startTime}</td>
+            <td>${r.endTime}</td>
+            <td>${r.distance}</td>
+          </tr>
+        `;
+      });
+
+      const html = `
+        <!DOCTYPE html>
+        <html lang="th">
+        <head>
+          <meta charset="utf-8" />
+          <title>รายงานจุดจอดนอกจุด</title>
+          <style>
+            body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; padding: 16px; }
+            h2 { margin: 0 0 4px 0; }
+            .subtitle { margin-bottom: 12px; font-size: 12px; color: #4b5563; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            th, td { border: 1px solid #d1d5db; padding: 4px 6px; vertical-align: top; }
+            th { background: #f3f4f6; text-align: left; }
+          </style>
+        </head>
+        <body>
+          <h2>รายงานจุดจอดนอกจุด</h2>
+          <div class="subtitle">
+            ช่วงวันที่ ${startStr} ถึง ${endStr}<br/>
+            จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>ทะเบียนรถ</th>
+                <th>ชื่อ พขร</th>
+                <th>สังกัด</th>
+                <th>สถานที่</th>
+                <th>พิกัด (Lat,Lng)</th>
+                <th>จำนวนจุดในคลัสเตอร์</th>
+                <th>เวลาเริ่มต้น</th>
+                <th>เวลาสิ้นสุด</th>
+                <th>ตัวอย่างระยะห่างจุดใกล้สุด</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          <script>
+            window.print();
+          <\/script>
+        </body>
+        </html>
+      `;
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
       loadData();
@@ -920,6 +1124,14 @@
         .addEventListener("click", () => {
           resetFilters();
         });
+
+      document
+        .getElementById("exportExcelBtn")
+        .addEventListener("click", exportToExcel);
+
+      document
+        .getElementById("exportPdfBtn")
+        .addEventListener("click", exportToPDF);
     });
   </script>
 </body>
