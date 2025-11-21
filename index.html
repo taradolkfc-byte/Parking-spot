@@ -488,28 +488,62 @@
       summaryControl.addTo(map);
     }
 
+    // ✅ clusterByRadius เวอร์ชันใหม่: ดูทั้งระยะทาง + เวลา (ไม่เกิน 20 ชม.)
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
-      data.forEach(row => {
+
+      // จำกัดช่วงเวลาสูงสุดที่ถือว่ายังเป็นคลัสเตอร์เดียวกัน (20 ชั่วโมง)
+      const MAX_CLUSTER_SPAN_MS = 20 * 60 * 60 * 1000; // 20 ชม.
+
+      // เตรียมข้อมูล: ผูกแถวกับ datetime แล้ว sort ตามเวลา
+      const enriched = data
+        .map(row => ({
+          row,
+          dt: parseDateTime(row[COLUMN.datetime])
+        }))
+        .sort((a, b) => (a.dt || 0) - (b.dt || 0));
+
+      enriched.forEach(({ row, dt }) => {
         const lat = parseFloat(row[COLUMN.lat]);
         const lng = parseFloat(row[COLUMN.lng]);
         if (isNaN(lat) || isNaN(lng)) return;
 
         let found = null;
+
         for (const cluster of clusters) {
           const d = haversineMeters(lat, lng, cluster.lat, cluster.lng);
-          if (d <= radiusMeters) {
+          if (d > radiusMeters) continue; // นอก 300 ม. ไม่รวม
+
+          if (!dt || !cluster.maxDt) continue;
+
+          const diffMs = dt - cluster.maxDt; // เวลาใหม่ - เวลาล่าสุดในคลัสเตอร์นี้
+
+          // เฉพาะกรณีที่เวลายังต่อเนื่องกันไม่เกิน 20 ชม.
+          if (diffMs >= 0 && diffMs <= MAX_CLUSTER_SPAN_MS) {
             found = cluster;
             break;
           }
         }
 
         if (found) {
+          // รวมเข้า cluster เดิม
           found.rows.push(row);
+          if (dt) {
+            if (!found.minDt || dt < found.minDt) found.minDt = dt;
+            if (!found.maxDt || dt > found.maxDt) found.maxDt = dt;
+          }
         } else {
-          clusters.push({ lat, lng, rows: [row] });
+          // สร้าง cluster ใหม่ (อาจจะเพราะคนละที่ หรือห่างกันเกิน 20 ชม.)
+          clusters.push({
+            lat,
+            lng,
+            rows: [row],
+            minDt: dt || null,
+            maxDt: dt || null
+          });
         }
       });
+
       return clusters;
     }
 
@@ -588,7 +622,6 @@
       } else if (Object.keys(summaryCounts).length === 0) {
         html += `<div>ไม่พบจุดจอดนอกจุดในช่วง ${startStr} - ${endStr}</div>`;
       } else {
-        // บรรทัดช่วงวันที่: ตัวใหญ่ขึ้น + หนาขึ้น
         html += `
           <div style="margin-bottom:8px; font-size:15px; font-weight:600;">
             ช่วง ${startStr} - ${endStr}
@@ -601,11 +634,9 @@
             const color = getColorForLicense(lic);
             html += `
               <div class="summary-item">
-                <!-- ทะเบียน: ใช้สีประจำทะเบียน + ขนาด 15px -->
                 <div style="font-weight:700; font-size:15px; color:${color};">
                   ทะเบียน ${lic}
                 </div>
-                <!-- จอดนอกจุด: สีดำ + ขนาดเท่าทะเบียน (15px) -->
                 <div style="font-size:15px; color:#000000;">
                   จอดนอกจุด ${summaryCounts[lic]} จุด
                 </div>
@@ -617,7 +648,7 @@
       box.innerHTML = html;
     }
 
-    // ✅ renderMap เวอร์ชันใหม่: ตัดจุดที่จอดน้อยกว่า 3 นาทีออก
+    // ✅ renderMap: ตัดจุดจอด < 3 นาทีออก
     function renderMap() {
       markersLayer.clearLayers();
 
