@@ -159,7 +159,7 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
-      <!-- ปุ่ม Export ใหม่ -->
+      <!-- ปุ่ม Export -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="exportExcelBtn" class="secondary">Export Excel</button>
@@ -189,7 +189,7 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
     const PARKING_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
@@ -553,74 +553,6 @@
       return clusters;
     }
 
-    // สร้าง records ที่ใช้ทั้งวาด marker และ export
-    function buildClusterRecords(filtered) {
-      const clusters = clusterByRadius(filtered, 300);
-      const records = [];
-      const licensesInView = new Set();
-
-      clusters.forEach(cluster => {
-        const { lat, lng, rows } = cluster;
-        if (!rows.length) return;
-        if (isInRefZone(lat, lng)) return;
-
-        const sortedRows = rows
-          .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
-          .sort((a, b) => (a.dt || 0) - (b.dt || 0));
-
-        const firstObj = sortedRows[0];
-        const lastObj  = sortedRows[sortedRows.length - 1];
-
-        const first = firstObj.row;
-        const last  = lastObj.row;
-
-        const startTime = first[COLUMN.datetime] || "-";
-        const endTime   = last[COLUMN.datetime]  || "-";
-
-        const startDt = firstObj.dt;
-        const endDt   = lastObj.dt;
-        if (startDt && endDt) {
-          const diffMs = endDt - startDt;
-          if (diffMs < MIN_STOP_MS) {
-            return;
-          }
-        }
-
-        const licenseSet = new Set(
-          rows.map(r => normalizeLicense(r[COLUMN.license])).filter(Boolean)
-        );
-        const driverSet  = new Set(rows.map(r => r[COLUMN.driver]).filter(Boolean));
-
-        const licenseText = Array.from(licenseSet).join(", ") || "ไม่ทราบทะเบียน";
-        const driverText  = Array.from(driverSet).join(", ") || "-";
-
-        const locationText = first[COLUMN.locationText] || "-";
-        const distance     = first[COLUMN.distance]     || "-";
-        const org          = first[COLUMN.org]          || "-";
-
-        const firstLicense = normalizeLicense(first[COLUMN.license] || licenseText);
-        const color = getColorForLicense(firstLicense || licenseText);
-        if (firstLicense) licensesInView.add(firstLicense);
-
-        records.push({
-          lat,
-          lng,
-          rowsCount: rows.length,
-          licenseText,
-          driverText,
-          org,
-          locationText,
-          distance,
-          startTime,
-          endTime,
-          color,
-          firstLicense: firstLicense || licenseText
-        });
-      });
-
-      return { records, licensesInView };
-    }
-
     // สรุปจำนวนจุดจอดต่อทะเบียน (ใช้ใน summary box และ status)
     function computeLicenseSummary(data) {
       const result = {};
@@ -663,6 +595,7 @@
       return result;
     }
 
+    // ✅ เวอร์ชันใหม่: อ่าน ละ/ลอง ตรง ๆ ก่อน แล้วค่อย fallback ไป parseRefLatLng
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
@@ -678,7 +611,29 @@
       });
 
       parkingData.forEach(row => {
-        const { lat, lng } = parseRefLatLng(row);
+        // พยายามอ่านจากคอลัมน์ตาม PARKING_COLUMN ก่อน (ละ / ลอง)
+        let lat = parseFloat(
+          row[PARKING_COLUMN.lat] ??
+          row["ละ"] ??
+          row["Lat"] ??
+          row["LAT"]
+        );
+        let lng = parseFloat(
+          row[PARKING_COLUMN.lng] ??
+          row["ลอง"] ??
+          row["Lon"] ??
+          row["LON"] ??
+          row["Lng"] ??
+          row["LNG"]
+        );
+
+        // ถ้าอ่านไม่ได้จริง ๆ ค่อย fallback ไปใช้ parseRefLatLng
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          const parsed = parseRefLatLng(row);
+          lat = parsed.lat;
+          lng = parsed.lng;
+        }
+
         if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
         const vals = Object.values(row);
@@ -797,30 +752,70 @@
       }
 
       const licenseSummary = computeLicenseSummary(filtered);
+      const clusters = clusterByRadius(filtered, 300);
+      const licensesInView = new Set();
 
-      const { records, licensesInView } = buildClusterRecords(filtered);
+      clusters.forEach(cluster => {
+        const { lat, lng, rows } = cluster;
+        if (!rows.length) return;
+        if (isInRefZone(lat, lng)) return;
 
-      records.forEach(rec => {
-        const marker = L.circleMarker([rec.lat, rec.lng], {
+        const sortedRows = rows
+          .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
+          .sort((a, b) => (a.dt || 0) - (b.dt || 0));
+
+        const firstObj = sortedRows[0];
+        const lastObj  = sortedRows[sortedRows.length - 1];
+
+        const first = firstObj.row;
+        const last  = lastObj.row;
+
+        const startTime = first[COLUMN.datetime] || "-";
+        const endTime   = last[COLUMN.datetime]  || "-";
+
+        const startDt = firstObj.dt;
+        const endDt   = lastObj.dt;
+        if (startDt && endDt) {
+          const diffMs = endDt - startDt;
+          if (diffMs < MIN_STOP_MS) {
+            return;
+          }
+        }
+
+        const licenseSet = new Set(rows.map(r => r[COLUMN.license]).filter(Boolean));
+        const driverSet  = new Set(rows.map(r => r[COLUMN.driver]).filter(Boolean));
+
+        const licenseText = Array.from(licenseSet).join(", ") || "ไม่ทราบทะเบียน";
+        const driverText  = Array.from(driverSet).join(", ") || "-";
+
+        const locationText = first[COLUMN.locationText] || "-";
+        const distance     = first[COLUMN.distance]     || "-";
+        const org          = first[COLUMN.org]          || "-";
+
+        const firstLicense = first[COLUMN.license] || licenseText;
+        const color = getColorForLicense(firstLicense);
+        licensesInView.add(firstLicense);
+
+        const marker = L.circleMarker([lat, lng], {
           radius: 9,
           color: "#000000",
           weight: 1.5,
-          fillColor: rec.color,
+          fillColor: color,
           fillOpacity: 0.95
         });
 
         const popupHtml = `
           <div style="font-size:13px;">
-            <strong>ทะเบียน:</strong> ${rec.licenseText}<br/>
-            <strong>พขร:</strong> ${rec.driverText}<br/>
-            <strong>สังกัด:</strong> ${rec.org}<br/>
-            <strong>สถานที่:</strong> ${rec.locationText}<br/>
-            <strong>จำนวนจุดในรัศมีนี้:</strong> ${rec.rowsCount} จุด<br/>
-            <strong>เวลาเริ่มต้น:</strong> ${rec.startTime}<br/>
-            <strong>เวลาสิ้นสุด:</strong> ${rec.endTime}<br/>
-            <strong>ตัวอย่างระยะห่างจุดใกล้สุด:</strong> ${rec.distance}<br/>
-            <strong>Lat,Lng:</strong> ${rec.lat.toFixed(6)}, ${rec.lng.toFixed(6)}<br/>
-            <a href="https://www.google.com/maps?q=${rec.lat},${rec.lng}" target="_blank" rel="noopener noreferrer">
+            <strong>ทะเบียน:</strong> ${licenseText}<br/>
+            <strong>พขร:</strong> ${driverText}<br/>
+            <strong>สังกัด:</strong> ${org}<br/>
+            <strong>สถานที่:</strong> ${locationText}<br/>
+            <strong>จำนวนจุดในรัศมีนี้:</strong> ${rows.length} จุด<br/>
+            <strong>เวลาเริ่มต้น:</strong> ${startTime}<br/>
+            <strong>เวลาสิ้นสุด:</strong> ${endTime}<br/>
+            <strong>ตัวอย่างระยะห่างจุดใกล้สุด:</strong> ${distance}<br/>
+            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
               เปิดใน Google Maps
             </a>
           </div>
@@ -828,7 +823,7 @@
 
         marker.bindPopup(popupHtml);
         marker.addTo(markersLayer);
-        bounds.push([rec.lat, rec.lng]);
+        bounds.push([lat, lng]);
       });
 
       if (bounds.length > 0) {
@@ -942,7 +937,8 @@
       });
     }
 
-    // ---------- Export helper ----------
+    // ---------- ส่วน Export ----------
+
     function escapeCSV(val) {
       if (val === null || val === undefined) return "";
       const s = String(val).replace(/"/g, '""');
@@ -950,6 +946,70 @@
         return `"${s}"`;
       }
       return s;
+    }
+
+    // ใช้คลัสเตอร์แบบเดียวกับบนแผนที่ แต่ดึงมาเป็น records สำหรับ export
+    function buildClusterRecords(filtered) {
+      const clusters = clusterByRadius(filtered, 300);
+      const records = [];
+
+      clusters.forEach(cluster => {
+        const { lat, lng, rows } = cluster;
+        if (!rows.length) return;
+        if (isInRefZone(lat, lng)) return;
+
+        const sortedRows = rows
+          .map(r => ({ row: r, dt: parseDateTime(r[COLUMN.datetime]) }))
+          .sort((a, b) => (a.dt || 0) - (b.dt || 0));
+
+        const firstObj = sortedRows[0];
+        const lastObj  = sortedRows[sortedRows.length - 1];
+
+        const first = firstObj.row;
+        const last  = lastObj.row;
+
+        const startTime = first[COLUMN.datetime] || "-";
+        const endTime   = last[COLUMN.datetime]  || "-";
+
+        const startDt = firstObj.dt;
+        const endDt   = lastObj.dt;
+        if (startDt && endDt) {
+          const diffMs = endDt - startDt;
+          if (diffMs < MIN_STOP_MS) {
+            return;
+          }
+        }
+
+        const licenseSet = new Set(
+          rows.map(r => normalizeLicense(r[COLUMN.license])).filter(Boolean)
+        );
+        const driverSet  = new Set(rows.map(r => r[COLUMN.driver]).filter(Boolean));
+
+        const licenseText = Array.from(licenseSet).join(", ") || "ไม่ทราบทะเบียน";
+        const driverText  = Array.from(driverSet).join(", ") || "-";
+
+        const locationText = first[COLUMN.locationText] || "-";
+        const distance     = first[COLUMN.distance]     || "-";
+        const org          = first[COLUMN.org]          || "-";
+
+        const firstLicense = normalizeLicense(first[COLUMN.license] || licenseText);
+
+        records.push({
+          lat,
+          lng,
+          rowsCount: rows.length,
+          licenseText,
+          driverText,
+          org,
+          locationText,
+          distance,
+          startTime,
+          endTime,
+          firstLicense: firstLicense || licenseText
+        });
+      });
+
+      return records;
     }
 
     function generateReportRecords() {
@@ -966,7 +1026,7 @@
         return null;
       }
 
-      const { records } = buildClusterRecords(filtered);
+      const records = buildClusterRecords(filtered);
       if (!records.length) {
         alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และไม่น้อยกว่า 3 นาที)");
         return null;
