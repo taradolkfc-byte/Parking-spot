@@ -68,6 +68,19 @@
       background: #6b7280;
     }
 
+    /* ✅ เปลี่ยนสีปุ่ม Export */
+    button#exportExcelBtn {
+      background: #16a34a !important; /* เขียว */
+      color: white !important;
+      border: none !important;
+    }
+
+    button#exportPdfBtn {
+      background: #f97316 !important; /* ส้ม */
+      color: white !important;
+      border: none !important;
+    }
+
     #map {
       width: 100%;
       height: calc(100vh - 70px);
@@ -829,7 +842,7 @@
         const locationText = first[COLUMN.locationText] || "-";
         const org          = first[COLUMN.org]          || "-";
 
-        // 🔍 หา “หมุด parking ใกล้สุด” เพื่อนำชื่อมาแสดง
+        // ยังคงหา nearest ไว้เผื่อใช้ที่อื่น แม้ไม่ได้แสดงใน popup แล้ว
         const nearest = getNearestParking(lat, lng);
         const nearestName = nearest.name;
 
@@ -854,7 +867,6 @@
             <strong>จำนวนจุดในรัศมีนี้:</strong> ${rows.length} จุด<br/>
             <strong>เวลาเริ่มต้น:</strong> ${startTime}<br/>
             <strong>เวลาสิ้นสุด:</strong> ${endTime}<br/>
-            <strong>ระยะห่างจุดใกล้สุด:</strong> ${nearestName}<br/>
             <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
               เปิดใน Google Maps
             </a>
