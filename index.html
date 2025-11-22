@@ -1141,89 +1141,95 @@
       URL.revokeObjectURL(url);
     }
 
-    function exportToPDF() {
-      const result = generateReportRecords();
-      if (!result) return;
-      const { records, startInput, endInput } = result;
+   function exportToPDF() {
+  const result = generateReportRecords();
+  if (!result) return;
+  const { records, startInput, endInput } = result;
 
-      const startStr = formatDateInputToDDMMYYYY(startInput);
-      const endStr = formatDateInputToDDMMYYYY(endInput);
+  const startStr = formatDateInputToDDMMYYYY(startInput);
+  const endStr = formatDateInputToDDMMYYYY(endInput);
 
-      const win = window.open("", "_blank");
-      if (!win) {
-        alert("เบราว์เซอร์บล็อก popup กรุณาอนุญาต popup ก่อน");
-        return;
-      }
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("เบราว์เซอร์บล็อก popup กรุณาอนุญาต popup ก่อน");
+    return;
+  }
 
-      let tableRows = "";
-      records.forEach((r, idx) => {
-        tableRows += `
+  let tableRows = "";
+  records.forEach((r, idx) => {
+    tableRows += `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${r.licenseText}</td>
+        <td>${r.driverText}</td>
+        <td>${r.org}</td>
+        <td>${r.locationText}</td>
+        <td>${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</td>
+        <td style="text-align:right;">${r.rowsCount}</td>
+        <td>${r.startTime}</td>
+        <td>${r.endTime}</td>
+        <td>${r.nearestName}</td>
+      </tr>
+    `;
+  });
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="utf-8" />
+      <title>รายงานจุดจอดนอกจุด</title>
+      <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; padding: 16px; }
+        h2 { margin: 0 0 4px 0; }
+        .subtitle { margin-bottom: 12px; font-size: 12px; color: #4b5563; }
+        table { border-collapse: collapse; width: 100%; font-size: 11px; }
+        th, td { border: 1px solid #d1d5db; padding: 4px 6px; vertical-align: top; }
+        th { background: #f3f4f6; text-align: left; }
+        .print-btn { margin-bottom: 12px; padding: 4px 10px; font-size: 12px; }
+        @media print {
+          .print-btn { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <h2>รายงานจุดจอดนอกจุด</h2>
+      <div class="subtitle">
+        ช่วงวันที่ ${startStr} ถึง ${endStr}<br/>
+        จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด
+      </div>
+
+      <!-- ปุ่มให้กดพิมพ์เอง -->
+      <button class="print-btn" onclick="window.print()">พิมพ์รายงาน</button>
+
+      <table>
+        <thead>
           <tr>
-            <td>${idx + 1}</td>
-            <td>${r.licenseText}</td>
-            <td>${r.driverText}</td>
-            <td>${r.org}</td>
-            <td>${r.locationText}</td>
-            <td>${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</td>
-            <td style="text-align:right;">${r.rowsCount}</td>
-            <td>${r.startTime}</td>
-            <td>${r.endTime}</td>
-            <td>${r.nearestName}</td>
+            <th>#</th>
+            <th>ทะเบียนรถ</th>
+            <th>ชื่อ พขร</th>
+            <th>สังกัด</th>
+            <th>สถานที่</th>
+            <th>พิกัด (Lat,Lng)</th>
+            <th>จำนวนจุดในคลัสเตอร์</th>
+            <th>เวลาเริ่มต้น</th>
+            <th>เวลาสิ้นสุด</th>
+            <th>ระยะห่างจุดใกล้สุด</th>
           </tr>
-        `;
-      });
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
 
-      const html = `
-        <!DOCTYPE html>
-        <html lang="th">
-        <head>
-          <meta charset="utf-8" />
-          <title>รายงานจุดจอดนอกจุด</title>
-          <style>
-            body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; padding: 16px; }
-            h2 { margin: 0 0 4px 0; }
-            .subtitle { margin-bottom: 12px; font-size: 12px; color: #4b5563; }
-            table { border-collapse: collapse; width: 100%; font-size: 11px; }
-            th, td { border: 1px solid #d1d5db; padding: 4px 6px; vertical-align: top; }
-            th { background: #f3f4f6; text-align: left; }
-          </style>
-        </head>
-        <body>
-          <h2>รายงานจุดจอดนอกจุด</h2>
-          <div class="subtitle">
-            ช่วงวันที่ ${startStr} ถึง ${endStr}<br/>
-            จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>ทะเบียนรถ</th>
-                <th>ชื่อ พขร</th>
-                <th>สังกัด</th>
-                <th>สถานที่</th>
-                <th>พิกัด (Lat,Lng)</th>
-                <th>จำนวนจุดในคลัสเตอร์</th>
-                <th>เวลาเริ่มต้น</th>
-                <th>เวลาสิ้นสุด</th>
-                <th>ระยะห่างจุดใกล้สุด</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
-          </table>
-          <script>
-            window.print();
-          <\/script>
-        </body>
-        </html>
-      `;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
 
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-    }
 
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
