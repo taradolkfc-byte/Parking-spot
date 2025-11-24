@@ -68,15 +68,14 @@
       background: #6b7280;
     }
 
-    /* เปลี่ยนสีปุ่ม Export */
+    /* ปุ่ม Export */
     button#exportExcelBtn {
-      background: #16a34a !important; /* เขียว */
+      background: #16a34a !important;
       color: white !important;
       border: none !important;
     }
-
     button#exportPdfBtn {
-      background: #f97316 !important; /* ส้ม */
+      background: #f97316 !important;
       color: white !important;
       border: none !important;
     }
@@ -172,7 +171,6 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
-      <!-- ปุ่ม Export -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="exportExcelBtn" class="secondary">Export Excel</button>
@@ -198,6 +196,7 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
+    // ========= CONFIG =========
     const SHEET_CSV_URL =
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
@@ -205,7 +204,7 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1061454761";
 
     const COLUMN = {
       license: "ทะเบียน",
@@ -228,17 +227,16 @@
 
     let rawData = [];
     let parkingData = [];
-    let refData = [];  // {lat, lng}
+    let refData = [];
 
     let map, markersLayer, parkingLayer;
     let summaryControl;
     const licenseColorMap = {};
 
-    // กำหนดสีทะเบียนแบบ fixed 3 คัน
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#cc0000",  // แดงจัด
-      "70-1927-64": "#1d4ed8",  // น้ำเงิน
-      "70-2484-70": "#eab308"   // เหลือง
+      "70-1873-63": "#cc0000",
+      "70-1927-64": "#1d4ed8",
+      "70-2484-70": "#eab308"
     };
 
     const colorPalette = [
@@ -251,7 +249,7 @@
       "#fb7185"
     ];
 
-    const MIN_STOP_MS = 3 * 60 * 1000;
+    const MIN_STOP_MS = 3 * 60 * 1000; // 3 นาที
 
     function updateStatus(text) {
       document.getElementById("statusBar").textContent = text;
@@ -302,7 +300,7 @@
       return R * c;
     }
 
-    const TRAFFIC_LIGHT_ZONES = [];
+    const TRAFFIC_LIGHT_ZONES = []; // ถ้าจะเพิ่มจุดไฟแดงก็เพิ่มใน array นี้
 
     function isInTrafficLightZone(lat, lng) {
       for (const z of TRAFFIC_LIGHT_ZONES) {
@@ -516,7 +514,7 @@
 
     function clusterByRadius(data, radiusMeters = 300) {
       const clusters = [];
-      const MAX_CLUSTER_SPAN_MS = 20 * 60 * 60 * 1000;
+      const MAX_CLUSTER_SPAN_MS = 20 * 60 * 60 * 1000; // 20 ชั่วโมง
 
       const enriched = data
         .map(row => ({
@@ -564,9 +562,7 @@
       return clusters;
     }
 
-    /* ฟังก์ชันใหม่: getParkingLatLng รองรับหัวข้อ "จุุดจอด ละ ลอง" + regex ดึงตัวเลข */
     function getParkingLatLng(row) {
-      // 1) พยายามอ่านจากชื่อคอลัมน์ที่คาดเดาได้ก่อน (กรณีชีทอื่น ๆ ในอนาคต)
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
         row["ละ"] ??
@@ -590,13 +586,12 @@
         return { lat, lng };
       }
 
-      // 2) ถ้ายังไม่ได้ ลองเดาจากชื่อ header แบบยืดหยุ่น (กรณีมีคอลัมน์ lat/lng แยกกันจริง ๆ)
       let candLat = NaN;
       let candLng = NaN;
 
       for (const [key, value] of Object.entries(row)) {
         const lowerKey = key.toLowerCase();
-        const valStr = String(value).replace(",", "."); // รองรับ 16,1234
+        const valStr = String(value).replace(",", ".");
         const num = parseFloat(valStr);
         if (Number.isNaN(num)) continue;
 
@@ -617,23 +612,19 @@
         return { lat: candLat, lng: candLng };
       }
 
-      // 3) เคสพิเศษของชีท parking: ชื่อสถานที่ + lat + lng อยู่ในคอลัมน์เดียว
-      //    ดึงตัวเลขด้วย regex จากสตริง แล้วใช้เลข 2 ตัวแรกที่เข้าเกณฑ์ lat/lng
       for (const value of Object.values(row)) {
         const str = String(value).replace(",", ".");
-        const matches = str.match(/-?\d+(\.\d+)?/g); // หาตัวเลขทุกตัวในสตริง
+        const matches = str.match(/-?\d+(\.\d+)?/g);
         if (!matches || matches.length < 2) continue;
 
         const a = parseFloat(matches[0]);
         const b = parseFloat(matches[1]);
 
-        // lat ช่วง -90..90, lng ช่วง -180..180 (ประเทศไทยอยู่ในช่วงนี้)
         if (a >= -90 && a <= 90 && b >= -180 && b <= 180) {
           return { lat: a, lng: b };
         }
       }
 
-      // 4) สำรองสุดท้าย: ลองเดาจากตัวเลขที่อยู่ติดกันใน row (เผื่อมีชีทอื่นในอนาคต)
       const nums = Object.values(row)
         .map(v => parseFloat(String(v).replace(",", ".")))
         .filter(n => !Number.isNaN(n));
@@ -646,7 +637,6 @@
         }
       }
 
-      // 5) ถ้าเดาไม่ได้จริง ๆ ให้คืน NaN เพื่อไม่สร้าง marker แถวนั้น
       return { lat: NaN, lng: NaN };
     }
 
@@ -823,7 +813,47 @@
       box.innerHTML = html;
     }
 
-    // ---------- renderMap() ----------
+    /* ===== อ้างอิงพิกัดจากชีตหลัก ===== */
+    // แก้ชื่อหัวคอลัมน์นี้ให้ตรงกับคอลัมน์ข้อความพิกัดในชีต (ถ้าใช้ชื่ออื่น)
+    const REF_LOCATION_COL = "พิกัด (Lat,Lng)";
+    let locationIndex = {};
+
+    function buildLocationIndex() {
+      locationIndex = {};
+      if (!rawData || !rawData.length) return;
+
+      rawData.forEach(row => {
+        const lat = parseFloat(row[COLUMN.lat]);
+        const lng = parseFloat(row[COLUMN.lng]);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+        const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+
+        let label = row[REF_LOCATION_COL];
+        if (!label || String(label).trim() === "") {
+          label = row[COLUMN.locationText];
+        }
+        if (!label || String(label).trim() === "") return;
+
+        locationIndex[key] = String(label).trim();
+      });
+    }
+
+    function formatLocationLabel(lat, lng) {
+      if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+        return "-";
+      }
+      const key = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+
+      if (locationIndex[key]) {
+        const label = locationIndex[key];
+        if (/^\s*พิกัด/.test(label)) return label;
+        return `พิกัด ${label}`;
+      }
+      return `พิกัด ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+    }
+
+    // ---------- renderMap ----------
     function renderMap() {
       markersLayer.clearLayers();
 
@@ -884,12 +914,10 @@
         const startDt = firstObj.dt;
         const endDt   = lastObj.dt;
 
-        // คำนวณระยะเวลาจอด
         let diffMs = null;
         if (startDt && endDt) {
           diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            // จอดไม่ถึง 3 นาที ไม่ถือเป็นจุดจอด
             return;
           }
         }
@@ -918,8 +946,6 @@
         const org          = first[COLUMN.org]          || "-";
 
         const nearest = getNearestParking(lat, lng);
-        const nearestName = nearest.name;
-
         const firstLicense = first[COLUMN.license] || licenseText;
         const color = getColorForLicense(firstLicense);
         licensesInView.add(firstLicense);
@@ -996,9 +1022,8 @@
       };
       legend.addTo(map);
     }
-    // ---------- จบ renderMap ----------
 
-    // ---------- ส่วน Export ----------
+    // ---------- Export ----------
     function escapeCSV(val) {
       if (val === null || val === undefined) return "";
       const s = String(val).replace(/"/g, '""');
@@ -1008,7 +1033,6 @@
       return s;
     }
 
-    // buildClusterRecords: เพิ่ม durationText
     function buildClusterRecords(filtered) {
       const clusters = clusterByRadius(filtered, 300);
       const records = [];
@@ -1064,8 +1088,6 @@
         const org          = first[COLUMN.org]          || "-";
 
         const nearest = getNearestParking(lat, lng);
-        const nearestName = nearest.name;
-
         const firstLicense = normalizeLicense(first[COLUMN.license] || licenseText);
 
         records.push({
@@ -1076,7 +1098,7 @@
           driverText,
           org,
           locationText,
-          nearestName,
+          nearestName: nearest.name,
           startTime,
           endTime,
           durationText,
@@ -1114,7 +1136,6 @@
       };
     }
 
-    // Export Excel
     function exportToExcel() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1125,8 +1146,7 @@
         "ชื่อ พขร",
         "สังกัด",
         "สถานที่",
-        "Lat",
-        "Lng",
+        "พิกัด",
         "จำนวนจุดในคลัสเตอร์",
         "เวลาเริ่มต้น",
         "เวลาสิ้นสุด",
@@ -1138,8 +1158,7 @@
         r.driverText,
         r.org,
         r.locationText,
-        r.lat.toFixed(6),
-        r.lng.toFixed(6),
+        formatLocationLabel(r.lat, r.lng),
         r.rowsCount,
         r.startTime,
         r.endTime,
@@ -1163,7 +1182,6 @@
       URL.revokeObjectURL(url);
     }
 
-    // Export PDF
     function exportToPDF() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1187,7 +1205,7 @@
             <td>${r.driverText}</td>
             <td>${r.org}</td>
             <td>${r.locationText}</td>
-            <td>${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</td>
+            <td>${formatLocationLabel(r.lat, r.lng)}</td>
             <td>${r.rowsCount}</td>
             <td>${r.startTime}</td>
             <td>${r.endTime}</td>
@@ -1243,7 +1261,7 @@
                 <th>ชื่อ พขร</th>
                 <th>สังกัด</th>
                 <th>สถานที่</th>
-                <th>พิกัด (Lat,Lng)</th>
+                <th>พิกัด</th>
                 <th>จำนวนจุดในคลัสเตอร์</th>
                 <th>เวลาเริ่มต้น</th>
                 <th>เวลาสิ้นสุด</th>
@@ -1313,6 +1331,8 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
+          buildLocationIndex();   // สร้าง index พิกัด/ข้อความจากชีตหลัก
+
           loadParkingData(() => {
             loadRefData(() => {
               updateStatus(
