@@ -138,9 +138,95 @@
     .summary-item {
       margin-bottom: 8px;
     }
+
+    /* ====== LOGIN OVERLAY ====== */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .login-box {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px 22px;
+      width: 280px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      text-align: center;
+    }
+    .login-box h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+      color: #111827;
+    }
+    .login-box p {
+      margin: 0 0 16px 0;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .login-field {
+      text-align: left;
+      margin-bottom: 10px;
+    }
+    .login-field label {
+      font-size: 12px;
+      color: #374151;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .login-field input {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .login-box button {
+      margin-top: 8px;
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .login-box button:hover {
+      background: #2563eb;
+    }
+    .login-error {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #b91c1c;
+      min-height: 16px;
+    }
   </style>
 </head>
 <body>
+  <!-- LOGIN OVERLAY -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-box">
+      <h2>เข้าสู่ระบบ</h2>
+      <p>กรุณากรอก ID และ Password เพื่อดูข้อมูลแผนที่</p>
+      <div class="login-field">
+        <label for="loginId">ID</label>
+        <input type="text" id="loginId" placeholder="กรอก ID เช่น kcpetro9999" />
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Password</label>
+        <input type="password" id="loginPass" placeholder="กรอก Password" />
+      </div>
+      <button id="loginBtn">เข้าสู่ระบบ</button>
+      <div id="loginError" class="login-error"></div>
+    </div>
+  </div>
+
   <header>
     <h1>📍 แผนที่จุดจอดรถน้ำมัน 2568</h1>
     <div class="filters">
@@ -185,7 +271,7 @@
   </header>
 
   <div id="map"></div>
-  <div class="status-bar" id="statusBar">กำลังโหลดข้อมูลจาก Google Sheets...</div>
+  <div class="status-bar" id="statusBar">กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets...</div>
 
   <!-- Leaflet JS -->
   <script
@@ -228,17 +314,16 @@
 
     let rawData = [];
     let parkingData = [];
-    let refData = [];  // {lat, lng}
+    let refData = [];
 
     let map, markersLayer, parkingLayer;
     let summaryControl;
     const licenseColorMap = {};
 
-    // กำหนดสีทะเบียนแบบ fixed 3 คัน
     const FIXED_LICENSE_COLORS = {
-      "70-1873-63": "#cc0000",  // แดงจัด
-      "70-1927-64": "#1d4ed8",  // น้ำเงิน
-      "70-2484-70": "#eab308"   // เหลือง
+      "70-1873-63": "#cc0000",
+      "70-1927-64": "#1d4ed8",
+      "70-2484-70": "#eab308"
     };
 
     const colorPalette = [
@@ -564,9 +649,8 @@
       return clusters;
     }
 
-    /* ฟังก์ชันใหม่: getParkingLatLng รองรับหัวข้อ "จุุดจอด ละ ลอง" + regex ดึงตัวเลข */
+    /* ฟังก์ชันอ่านพิกัด parking: รองรับหลายแบบ */
     function getParkingLatLng(row) {
-      // 1) พยายามอ่านจากชื่อคอลัมน์ที่คาดเดาได้ก่อน (กรณีชีทอื่น ๆ ในอนาคต)
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
         row["ละ"] ??
@@ -590,13 +674,12 @@
         return { lat, lng };
       }
 
-      // 2) ถ้ายังไม่ได้ ลองเดาจากชื่อ header แบบยืดหยุ่น (กรณีมีคอลัมน์ lat/lng แยกกันจริง ๆ)
       let candLat = NaN;
       let candLng = NaN;
 
       for (const [key, value] of Object.entries(row)) {
         const lowerKey = key.toLowerCase();
-        const valStr = String(value).replace(",", "."); // รองรับ 16,1234
+        const valStr = String(value).replace(",", ".");
         const num = parseFloat(valStr);
         if (Number.isNaN(num)) continue;
 
@@ -617,23 +700,19 @@
         return { lat: candLat, lng: candLng };
       }
 
-      // 3) เคสพิเศษของชีท parking: ชื่อสถานที่ + lat + lng อยู่ในคอลัมน์เดียว
-      //    ดึงตัวเลขด้วย regex จากสตริง แล้วใช้เลข 2 ตัวแรกที่เข้าเกณฑ์ lat/lng
       for (const value of Object.values(row)) {
         const str = String(value).replace(",", ".");
-        const matches = str.match(/-?\d+(\.\d+)?/g); // หาตัวเลขทุกตัวในสตริง
+        const matches = str.match(/-?\d+(\.\d+)?/g);
         if (!matches || matches.length < 2) continue;
 
         const a = parseFloat(matches[0]);
         const b = parseFloat(matches[1]);
 
-        // lat ช่วง -90..90, lng ช่วง -180..180 (ประเทศไทยอยู่ในช่วงนี้)
         if (a >= -90 && a <= 90 && b >= -180 && b <= 180) {
           return { lat: a, lng: b };
         }
       }
 
-      // 4) สำรองสุดท้าย: ลองเดาจากตัวเลขที่อยู่ติดกันใน row (เผื่อมีชีทอื่นในอนาคต)
       const nums = Object.values(row)
         .map(v => parseFloat(String(v).replace(",", ".")))
         .filter(n => !Number.isNaN(n));
@@ -646,7 +725,6 @@
         }
       }
 
-      // 5) ถ้าเดาไม่ได้จริง ๆ ให้คืน NaN เพื่อไม่สร้าง marker แถวนั้น
       return { lat: NaN, lng: NaN };
     }
 
@@ -884,12 +962,10 @@
         const startDt = firstObj.dt;
         const endDt   = lastObj.dt;
 
-        // คำนวณระยะเวลาจอด
         let diffMs = null;
         if (startDt && endDt) {
           diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            // จอดไม่ถึง 3 นาที ไม่ถือเป็นจุดจอด
             return;
           }
         }
@@ -916,9 +992,6 @@
 
         const locationText = first[COLUMN.locationText] || "-";
         const org          = first[COLUMN.org]          || "-";
-
-        const nearest = getNearestParking(lat, lng);
-        const nearestName = nearest.name;
 
         const firstLicense = first[COLUMN.license] || licenseText;
         const color = getColorForLicense(firstLicense);
@@ -1008,7 +1081,6 @@
       return s;
     }
 
-    // buildClusterRecords: เพิ่ม durationText
     function buildClusterRecords(filtered) {
       const clusters = clusterByRadius(filtered, 300);
       const records = [];
@@ -1114,7 +1186,6 @@
       };
     }
 
-    // Export Excel
     function exportToExcel() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1163,7 +1234,6 @@
       URL.revokeObjectURL(url);
     }
 
-    // Export PDF
     function exportToPDF() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1330,10 +1400,44 @@
       });
     }
 
+    // ====== LOGIN LOGIC ======
+    const VALID_ID = "kcpetro9999";
+    const VALID_PASS = "kcpetropass9999";
+
+    function handleLogin() {
+      const id = document.getElementById("loginId").value.trim();
+      const pass = document.getElementById("loginPass").value.trim();
+      const errorEl = document.getElementById("loginError");
+
+      if (id === VALID_ID && pass === VALID_PASS) {
+        errorEl.textContent = "";
+        const overlay = document.getElementById("loginOverlay");
+        overlay.style.display = "none";
+        // เมื่อเข้าสู่ระบบสำเร็จ จึงเริ่มโหลดข้อมูล
+        loadData();
+      } else {
+        errorEl.textContent = "ID หรือ Password ไม่ถูกต้อง";
+      }
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
-      loadData();
 
+      // ตั้งข้อความเริ่มต้น
+      updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
+
+      // Login events
+      document.getElementById("loginBtn")
+        .addEventListener("click", handleLogin);
+
+      document.getElementById("loginPass")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            handleLogin();
+          }
+        });
+
+      // ปุ่ม filter / export (จะทำงานหลังจาก loadData แล้ว)
       document.getElementById("applyFilterBtn")
         .addEventListener("click", () => renderMap());
 
