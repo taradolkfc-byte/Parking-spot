@@ -68,15 +68,14 @@
       background: #6b7280;
     }
 
-    /* เปลี่ยนสีปุ่ม Export */
+    /* ปุ่ม Export */
     button#exportExcelBtn {
-      background: #16a34a !important; /* เขียว */
+      background: #16a34a !important;
       color: white !important;
       border: none !important;
     }
-
     button#exportPdfBtn {
-      background: #f97316 !important; /* ส้ม */
+      background: #f97316 !important;
       color: white !important;
       border: none !important;
     }
@@ -216,12 +215,10 @@
       <p>กรุณากรอก ID และ Password เพื่อดูข้อมูลแผนที่</p>
       <div class="login-field">
         <label for="loginId">ID</label>
-        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="text" id="loginId" />
       </div>
       <div class="login-field">
         <label for="loginPass">Password</label>
-        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="password" id="loginPass" />
       </div>
       <button id="loginBtn">เข้าสู่ระบบ</button>
@@ -260,7 +257,6 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
-      <!-- ปุ่ม Export -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="exportExcelBtn" class="secondary">Export Excel</button>
@@ -327,8 +323,7 @@
     ];
 
     function isSpecialParking(lat, lng) {
-      // เช็คใกล้กันในระยะประมาณ 50 เมตร (กันเรื่องทศนิยมไม่เป๊ะ)
-      const EPS = 0.0005;
+      const EPS = 0.0005; // ~50m
       return SPECIAL_PARKING_POINTS.some(p =>
         Math.abs(p.lat - lat) < EPS && Math.abs(p.lng - lng) < EPS
       );
@@ -671,7 +666,7 @@
       return clusters;
     }
 
-    /* ฟังก์ชันอ่านพิกัด parking: รองรับหลายแบบ */
+    /* ฟังก์ชันอ่านพิกัด parking */
     function getParkingLatLng(row) {
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
@@ -825,12 +820,15 @@
       return result;
     }
 
-    // ---- เวอร์ชันใหม่ของ renderParkingMarkers (มีหมุดชมพูสำหรับจุดพิเศษ) ----
+    // ---- แสดงหมุด parking (เขียว + ชมพู) ----
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
-      if (!parkingData.length) return;
 
-      // ไอคอนเขียวเดิม (ใช้สำหรับหมุดปกติ)
+      if (!parkingData || parkingData.length === 0) {
+        console.warn("⚠️ ไม่มีข้อมูล parkingData ให้แสดงหมุด");
+        return;
+      }
+
       const defaultIcon = L.icon({
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -841,9 +839,12 @@
         shadowSize: [41, 41]
       });
 
-      parkingData.forEach(row => {
+      parkingData.forEach((row, idx) => {
         const { lat, lng } = getParkingLatLng(row);
-        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          // console.warn("row ไม่มีพิกัด :", idx, row);
+          return;
+        }
 
         const vals = Object.values(row);
         const name =
@@ -866,27 +867,27 @@
           </div>
         `;
 
-        let m;
+        let marker;
         if (isSpecialParking(lat, lng)) {
-          // ✅ หมุดพิเศษ: ใช้ circleMarker สีชมพู
-          m = L.circleMarker([lat, lng], {
+          marker = L.circleMarker([lat, lng], {
             radius: 10,
-            color: "#9d174d",      // ขอบชมพูเข้ม
+            color: "#9d174d",
             weight: 2,
-            fillColor: "#ec4899",  // ชมพูสด
+            fillColor: "#ec4899",
             fillOpacity: 0.95
           });
         } else {
-          // หมุดปกติ: ใช้ไอคอนเขียวเดิม
-          m = L.marker([lat, lng], { icon: defaultIcon });
+          marker = L.marker([lat, lng], { icon: defaultIcon });
         }
 
-        m.bindPopup(popupHtml);
-        m.bindTooltip(name, { direction: "top", offset: [0, -28] });
-        m.addTo(parkingLayer);
+        marker.bindPopup(popupHtml);
+        marker.bindTooltip(name, { direction: "top", offset: [0, -28] });
+        marker.addTo(parkingLayer);
 
         if (boundsArray) boundsArray.push([lat, lng]);
       });
+
+      console.log("✅ parking markers rendered");
     }
 
     function formatDateInputToDDMMYYYY(inputVal) {
@@ -1378,6 +1379,7 @@
         skipEmptyLines: true,
         complete: function (results) {
           parkingData = results.data || [];
+          console.log("✅ parkingData rows:", parkingData.length);
           if (callback) callback();
         },
         error: function (err) {
@@ -1421,6 +1423,7 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
+          console.log("✅ rawData rows:", rawData.length);
           loadParkingData(() => {
             loadRefData(() => {
               updateStatus(
@@ -1451,7 +1454,6 @@
         errorEl.textContent = "";
         const overlay = document.getElementById("loginOverlay");
         overlay.style.display = "none";
-        // เมื่อเข้าสู่ระบบสำเร็จ จึงเริ่มโหลดข้อมูล
         loadData();
       } else {
         errorEl.textContent = "ID หรือ Password ไม่ถูกต้อง";
@@ -1460,11 +1462,8 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
-
-      // ตั้งข้อความเริ่มต้น
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
-      // Login events
       document.getElementById("loginBtn")
         .addEventListener("click", handleLogin);
 
@@ -1475,7 +1474,6 @@
           }
         });
 
-      // ปุ่ม filter / export (จะทำงานหลังจาก loadData แล้ว)
       document.getElementById("applyFilterBtn")
         .addEventListener("click", () => renderMap());
 
