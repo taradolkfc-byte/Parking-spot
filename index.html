@@ -290,10 +290,10 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
     const PARKING_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1061454761";
 
     const COLUMN = {
       license: "ทะเบียน",
@@ -313,6 +313,26 @@
       locationText: "ระบุสถานที่",
       note: "หมายเหตุ"
     };
+
+    // ===== หมุด parking พิเศษ ให้เป็นสีชมพู =====
+    const SPECIAL_PARKING_POINTS = [
+      { lat: 13.103477, lng: 101.139517 },  // จอดเติมน้ำมันคาเท็ก-เพียวไทย
+      { lat: 14.130982, lng: 101.869226 },  // สถานีตรวจสอบน้ำหนัก ปราจีนขาออก
+      { lat: 14.216121, lng: 101.901196 },  // ปั๊มPTT อ.นาดี
+      { lat: 14.290456, lng: 101.882777 },  // พักรถ อ.นาดี(ก่อนขึ้นเขาปัก)
+      { lat: 14.392192, lng: 101.865672 },  // จุดบริการประชาชน อ.วังน้ำเขียว
+      { lat: 15.235707, lng: 102.377116 },  // คาเท็กเพียวไทย อ.โนนสูง
+      { lat: 15.614965, lng: 103.836375 },  // PTT Station ปตท.สุวรรณภูมิ-พนมไพร
+      { lat: 17.336552, lng: 102.834422 }   // PTT Station ปตท.บ้านตาด
+    ];
+
+    function isSpecialParking(lat, lng) {
+      // เช็คใกล้กันในระยะประมาณ 50 เมตร (กันเรื่องทศนิยมไม่เป๊ะ)
+      const EPS = 0.0005;
+      return SPECIAL_PARKING_POINTS.some(p =>
+        Math.abs(p.lat - lat) < EPS && Math.abs(p.lng - lng) < EPS
+      );
+    }
 
     let rawData = [];
     let parkingData = [];
@@ -805,10 +825,12 @@
       return result;
     }
 
+    // ---- เวอร์ชันใหม่ของ renderParkingMarkers (มีหมุดชมพูสำหรับจุดพิเศษ) ----
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
       if (!parkingData.length) return;
 
+      // ไอคอนเขียวเดิม (ใช้สำหรับหมุดปกติ)
       const defaultIcon = L.icon({
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
         iconRetinaUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -844,7 +866,21 @@
           </div>
         `;
 
-        const m = L.marker([lat, lng], { icon: defaultIcon });
+        let m;
+        if (isSpecialParking(lat, lng)) {
+          // ✅ หมุดพิเศษ: ใช้ circleMarker สีชมพู
+          m = L.circleMarker([lat, lng], {
+            radius: 10,
+            color: "#9d174d",      // ขอบชมพูเข้ม
+            weight: 2,
+            fillColor: "#ec4899",  // ชมพูสด
+            fillOpacity: 0.95
+          });
+        } else {
+          // หมุดปกติ: ใช้ไอคอนเขียวเดิม
+          m = L.marker([lat, lng], { icon: defaultIcon });
+        }
+
         m.bindPopup(popupHtml);
         m.bindTooltip(name, { direction: "top", offset: [0, -28] });
         m.addTo(parkingLayer);
