@@ -68,14 +68,15 @@
       background: #6b7280;
     }
 
+    /* เปลี่ยนสีปุ่ม Export */
     button#exportExcelBtn {
-      background: #16a34a !important;
+      background: #16a34a !important; /* เขียว */
       color: white !important;
       border: none !important;
     }
 
     button#exportPdfBtn {
-      background: #f97316 !important;
+      background: #f97316 !important; /* ส้ม */
       color: white !important;
       border: none !important;
     }
@@ -138,7 +139,7 @@
       margin-bottom: 8px;
     }
 
-    /* LOGIN OVERLAY */
+    /* ====== LOGIN OVERLAY ====== */
     .login-overlay {
       position: fixed;
       inset: 0;
@@ -215,10 +216,12 @@
       <p>กรุณากรอก ID และ Password เพื่อดูข้อมูลแผนที่</p>
       <div class="login-field">
         <label for="loginId">ID</label>
+        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="text" id="loginId" />
       </div>
       <div class="login-field">
         <label for="loginPass">Password</label>
+        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="password" id="loginPass" />
       </div>
       <button id="loginBtn">เข้าสู่ระบบ</button>
@@ -257,6 +260,7 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
+      <!-- ปุ่ม Export -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="exportExcelBtn" class="secondary">Export Excel</button>
@@ -286,10 +290,10 @@
       "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=365287996";
 
     const PARKING_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1849750877";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1849750877";
 
     const REF_CSV_URL =
-      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKBtVHmF5p4iGY/export?format=csv&gid=1061454761";
+      "https://docs.google.com/spreadsheets/d/1hjEeceDdHwOgZ4hbcE8bOfitZVhKB7KBtVHmF5p4iGY/export?format=csv&gid=1061454761";
 
     const COLUMN = {
       license: "ทะเบียน",
@@ -309,25 +313,6 @@
       locationText: "ระบุสถานที่",
       note: "หมายเหตุ"
     };
-
-    // ===== จุด parking พิเศษให้เป็นสีชมพู =====
-    const SPECIAL_PARKING_POINTS = [
-      { lat: 13.103477, lng: 101.139517 },
-      { lat: 14.130982, lng: 101.869226 },
-      { lat: 14.216121, lng: 101.901196 },
-      { lat: 14.290456, lng: 101.882777 },
-      { lat: 14.392192, lng: 101.865672 },
-      { lat: 15.235707, lng: 102.377116 },
-      { lat: 15.614965, lng: 103.836375 },
-      { lat: 17.336552, lng: 102.834422 }
-    ];
-
-    function isSpecialParking(lat, lng) {
-      const EPS = 0.0005;
-      return SPECIAL_PARKING_POINTS.some(p =>
-        Math.abs(p.lat - lat) < EPS && Math.abs(p.lng - lng) < EPS
-      );
-    }
 
     let rawData = [];
     let parkingData = [];
@@ -666,6 +651,7 @@
       return clusters;
     }
 
+    /* ฟังก์ชันอ่านพิกัด parking: รองรับหลายแบบ */
     function getParkingLatLng(row) {
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
@@ -819,9 +805,9 @@
       return result;
     }
 
-    // ---- วาดหมุดจอดมาตรฐาน + หมุดชมพูพิเศษ ----
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
+      if (!parkingData.length) return;
 
       const defaultIcon = L.icon({
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -833,72 +819,38 @@
         shadowSize: [41, 41]
       });
 
-      let countFromSheet = 0;
+      parkingData.forEach(row => {
+        const { lat, lng } = getParkingLatLng(row);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
-      if (Array.isArray(parkingData) && parkingData.length > 0) {
-        parkingData.forEach((row, idx) => {
-          const { lat, lng } = getParkingLatLng(row);
-          if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+        const vals = Object.values(row);
+        const name =
+          row[PARKING_COLUMN.name] ||
+          row[PARKING_COLUMN.locationText] ||
+          row["ชื่อสถานที่"] ||
+          vals[0] ||
+          "-";
 
-          const vals = Object.values(row);
-          const name =
-            row[PARKING_COLUMN.name] ||
-            row[PARKING_COLUMN.locationText] ||
-            row["ชื่อสถานที่"] ||
-            vals[0] ||
-            "-";
+        const note = row[PARKING_COLUMN.note] || "";
 
-          const note = row[PARKING_COLUMN.note] || "";
+        const popupHtml = `
+          <div style="font-size:13px;">
+            <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
+            ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
+            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+              เปิดใน Google Maps
+            </a>
+          </div>
+        `;
 
-          const popupHtml = `
-            <div style="font-size:13px;">
-              <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
-              ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
-              <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
-              <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
-                เปิดใน Google Maps
-              </a>
-            </div>
-          `;
+        const m = L.marker([lat, lng], { icon: defaultIcon });
+        m.bindPopup(popupHtml);
+        m.bindTooltip(name, { direction: "top", offset: [0, -28] });
+        m.addTo(parkingLayer);
 
-          let marker;
-          if (isSpecialParking(lat, lng)) {
-            marker = L.circleMarker([lat, lng], {
-              radius: 10,
-              color: "#9d174d",
-              weight: 2,
-              fillColor: "#ec4899",
-              fillOpacity: 0.95
-            });
-          } else {
-            marker = L.marker([lat, lng], { icon: defaultIcon });
-          }
-
-          marker.bindPopup(popupHtml);
-          marker.bindTooltip(name, { direction: "top", offset: [0, -28] });
-          marker.addTo(parkingLayer);
-
-          if (boundsArray) boundsArray.push([lat, lng]);
-          countFromSheet++;
-        });
-      }
-
-      // วาดหมุดชมพูจาก SPECIAL_PARKING_POINTS โดยตรง เผื่อกรณีไม่มีในชีต
-      SPECIAL_PARKING_POINTS.forEach(p => {
-        const marker = L.circleMarker([p.lat, p.lng], {
-          radius: 10,
-          color: "#9d174d",
-          weight: 2,
-          fillColor: "#ec4899",
-          fillOpacity: 0.95
-        });
-        marker.bindTooltip("จุดพักรถพิเศษ", { direction: "top", offset: [0, -28] });
-        marker.addTo(parkingLayer);
-        if (boundsArray) boundsArray.push([p.lat, p.lng]);
+        if (boundsArray) boundsArray.push([lat, lng]);
       });
-
-      console.log("✅ renderParkingMarkers: fromSheet =", countFromSheet,
-                  ", specialPoints =", SPECIAL_PARKING_POINTS.length);
     }
 
     function formatDateInputToDDMMYYYY(inputVal) {
@@ -951,6 +903,7 @@
       box.innerHTML = html;
     }
 
+    // ---------- renderMap() ----------
     function renderMap() {
       markersLayer.clearLayers();
 
@@ -971,7 +924,7 @@
         if (bounds.length > 0) {
           map.fitBounds(bounds, { padding: [40, 40] });
         }
-        updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐานและจุดพิเศษ)");
+        updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐาน)");
         updateSummaryBox({}, startInput, endInput);
         return;
       }
@@ -1118,7 +1071,9 @@
       };
       legend.addTo(map);
     }
+    // ---------- จบ renderMap ----------
 
+    // ---------- ส่วน Export ----------
     function escapeCSV(val) {
       if (val === null || val === undefined) return "";
       const s = String(val).replace(/"/g, '""');
@@ -1387,7 +1342,6 @@
         skipEmptyLines: true,
         complete: function (results) {
           parkingData = results.data || [];
-          console.log("✅ parkingData rows:", parkingData.length);
           if (callback) callback();
         },
         error: function (err) {
@@ -1412,7 +1366,6 @@
               refData.push({ lat, lng });
             }
           });
-          console.log("✅ refData rows:", refData.length);
           if (callback) callback();
         },
         error: function (err) {
@@ -1432,8 +1385,6 @@
         skipEmptyLines: true,
         complete: function (results) {
           rawData = results.data || [];
-          console.log("✅ rawData rows:", rawData.length);
-
           loadParkingData(() => {
             loadRefData(() => {
               updateStatus(
@@ -1451,7 +1402,7 @@
       });
     }
 
-    // LOGIN
+    // ====== LOGIN LOGIC ======
     const VALID_ID = "kcpetro9999";
     const VALID_PASS = "kcpetropass9999";
 
@@ -1462,7 +1413,9 @@
 
       if (id === VALID_ID && pass === VALID_PASS) {
         errorEl.textContent = "";
-        document.getElementById("loginOverlay").style.display = "none";
+        const overlay = document.getElementById("loginOverlay");
+        overlay.style.display = "none";
+        // เมื่อเข้าสู่ระบบสำเร็จ จึงเริ่มโหลดข้อมูล
         loadData();
       } else {
         errorEl.textContent = "ID หรือ Password ไม่ถูกต้อง";
@@ -1471,8 +1424,11 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
+
+      // ตั้งข้อความเริ่มต้น
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
+      // Login events
       document.getElementById("loginBtn")
         .addEventListener("click", handleLogin);
 
@@ -1483,6 +1439,7 @@
           }
         });
 
+      // ปุ่ม filter / export (จะทำงานหลังจาก loadData แล้ว)
       document.getElementById("applyFilterBtn")
         .addEventListener("click", () => renderMap());
 
