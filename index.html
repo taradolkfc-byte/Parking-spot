@@ -1239,98 +1239,93 @@
     }
 
     // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
-    function exportToPDF() {
-      const result = generateReportRecords();
-      if (!result) return;
-      const { records, startInput, endInput } = result;
+   function exportToPDF() {
+  const result = generateReportRecords();
+  if (!result) return;
+  const { records, startInput, endInput } = result;
 
-      const startStr = formatDateInputToDDMMYYYY(startInput);
-      const endStr = formatDateInputToDDMMYYYY(endInput);
+  const startStr = formatDateInputToDDMMYYYY(startInput);
+  const endStr   = formatDateInputToDDMMYYYY(endInput);
 
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4"
-      });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4"
+  });
 
-      // ใช้ฟอนต์ Sarabun ที่โหลดมาจาก Sarabun-normal.js
-      doc.setFont("Sarabun", "normal");
+  // ✅ ใช้ฟอนต์ไทยที่เรา register ไว้ (Sarabun / NotoSansThai ฯลฯ)
+  doc.setFont("Sarabun", "normal");
 
-      // หัวกระดาษ
-      doc.setFontSize(14);
-      doc.text("รายงานจุดจอดนอกจุด", 14, 12);
+  // หัวกระดาษ
+  doc.setFontSize(14);
+  doc.text("รายงานจุดจอดนอกจุด", 14, 12);
+  doc.setFontSize(10);
+  doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
+  doc.text(
+    `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
+    14,
+    24
+  );
 
-      doc.setFontSize(10);
-      doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
-      doc.text(
-        `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
-        14,
-        24
-      );
+  const head = [[
+    "#",
+    "ทะเบียนรถ",
+    "ชื่อ พขร",
+    "สังกัด",
+    "สถานที่",
+    "พิกัด (Lat,Lng)",
+    "จำนวนจุดในคลัสเตอร์",
+    "เวลาเริ่มต้น",
+    "เวลาสิ้นสุด",
+    "ใช้เวลาจอด"
+  ]];
 
-      const head = [[
-        "#",
-        "ทะเบียนรถ",
-        "ชื่อ พขร",
-        "สังกัด",
-        "สถานที่",
-        "พิกัด (Lat,Lng)",
-        "จำนวนจุดในคลัสเตอร์",
-        "เวลาเริ่มต้น",
-        "เวลาสิ้นสุด",
-        "ใช้เวลาจอด"
-      ]];
+  const body = records.map((r, idx) => ([
+    idx + 1,
+    r.licenseText,
+    r.driverText,
+    r.org,
+    r.locationText,
+    `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
+    r.rowsCount,
+    r.startTime,
+    r.endTime,
+    r.durationText
+  ]));
 
-      const body = records.map((r, idx) => ([
-        idx + 1,
-        r.licenseText,
-        r.driverText,
-        r.org,
-        r.locationText,
-        `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
-        r.rowsCount,
-        r.startTime,
-        r.endTime,
-        r.durationText
-      ]));
+  doc.autoTable({
+    startY: 28,
+    head,
+    body,
+    styles: {
+      font: "Sarabun",
+      fontSize: 8,
+      cellPadding: 2,
+      halign: "center",
+      valign: "middle",
+      overflow: "linebreak"
+    },
+    headStyles: {
+      font: "Sarabun",
+      fontStyle: "normal",
+      fillColor: [243, 244, 246],
+      textColor: 0
+    },
+    columnStyles: {
+      1: { cellWidth: 23 },             // ทะเบียนรถ
+      2: { cellWidth: 22 },             // ชื่อ พขร
+      4: { halign: "left", cellWidth: 45 }, // สถานที่
+      5: { halign: "left", cellWidth: 40 }  // พิกัด
+    },
+    margin: { left: 10, right: 10 }
+  });
 
-      doc.autoTable({
-        startY: 28,
-        head,
-        body,
-        styles: {
-          font: "Sarabun",
-          fontSize: 8,
-          cellPadding: 2,
-          halign: "center",
-          valign: "middle",
-          overflow: "linebreak"
-        },
-        headStyles: {
-          fillColor: [243, 244, 246],
-          textColor: 0,
-          font: "Sarabun",
-          fontStyle: "normal"
-        },
-        bodyStyles: {
-          textColor: 0
-        },
-        columnStyles: {
-          1: { cellWidth: 23 },           // ทะเบียน
-          2: { cellWidth: 22 },           // ชื่อ พขร
-          4: { halign: "left", cellWidth: 45 }, // สถานที่
-          5: { halign: "left", cellWidth: 40 }  // พิกัด
-        },
-        margin: { left: 10, right: 10 }
-      });
+  const fileStart = startStr.replace(/\//g, "");
+  const fileEnd   = endStr.replace(/\//g, "");
+  doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
+}
 
-      const fileStart = startStr.replace(/\//g, "");
-      const fileEnd = endStr.replace(/\//g, "");
-      const fileName = `stops_${fileStart}_${fileEnd}.pdf`;
-
-      doc.save(fileName);
-    }
 
     function loadParkingData(callback) {
       Papa.parse(PARKING_CSV_URL, {
