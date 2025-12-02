@@ -14,11 +14,8 @@
   />
 
   <!-- jsPDF & AutoTable (ใช้สร้างไฟล์ PDF ฝั่งหน้าเว็บ) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-  <!-- ฟอนต์ไทย Sarabun ที่คุณแปลงจาก jsPDF Font Converter -->
-  <!-- ไฟล์นี้ต้องอยู่โฟลเดอร์เดียวกับไฟล์ HTML (ปรับ path ตามจริงได้) -->
   <script src="./Sarabun-normal.js"></script>
 
   <style>
@@ -1239,7 +1236,8 @@
     }
 
     // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
-   function exportToPDF() {
+  // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
+function exportToPDF() {
   const result = generateReportRecords();
   if (!result) return;
   const { records, startInput, endInput } = result;
@@ -1247,14 +1245,14 @@
   const startStr = formatDateInputToDDMMYYYY(startInput);
   const endStr   = formatDateInputToDDMMYYYY(endInput);
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({
+  // ใช้ jsPDF จาก global (ให้ตรงกับที่ Sarabun-normal.js ใช้)
+  const doc = new window.jsPDF({
     orientation: "landscape",
     unit: "mm",
     format: "a4"
   });
 
-  // ✅ ใช้ฟอนต์ไทยที่เรา register ไว้ (Sarabun / NotoSansThai ฯลฯ)
+  // ✅ ใช้ฟอนต์ไทยที่เรา register ไว้ (Sarabun)
   doc.setFont("Sarabun", "normal");
 
   // หัวกระดาษ
@@ -1313,8 +1311,8 @@
       textColor: 0
     },
     columnStyles: {
-      1: { cellWidth: 23 },             // ทะเบียนรถ
-      2: { cellWidth: 22 },             // ชื่อ พขร
+      1: { cellWidth: 23 },              // ทะเบียนรถ
+      2: { cellWidth: 22 },              // ชื่อ พขร
       4: { halign: "left", cellWidth: 45 }, // สถานที่
       5: { halign: "left", cellWidth: 40 }  // พิกัด
     },
@@ -1325,6 +1323,7 @@
   const fileEnd   = endStr.replace(/\//g, "");
   doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
 }
+
 
 
     function loadParkingData(callback) {
