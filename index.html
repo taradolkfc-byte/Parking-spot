@@ -17,6 +17,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
+  <!-- ฟอนต์ไทย Sarabun ที่คุณแปลงจาก jsPDF Font Converter -->
+  <!-- ไฟล์นี้ต้องอยู่โฟลเดอร์เดียวกับไฟล์ HTML (ปรับ path ตามจริงได้) -->
+  <script src="./Sarabun-normal.js"></script>
+
   <style>
     body {
       margin: 0;
@@ -1234,7 +1238,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // ==== Export PDF แบบดาวน์โหลดไฟล์ทันที ====
+    // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
     function exportToPDF() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1243,22 +1247,28 @@
       const startStr = formatDateInputToDDMMYYYY(startInput);
       const endStr = formatDateInputToDDMMYYYY(endInput);
 
-      // ดึง jsPDF จาก UMD
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
-        orientation: "landscape",  // แนวนอน
+        orientation: "landscape",
         unit: "mm",
         format: "a4"
       });
 
+      // ใช้ฟอนต์ Sarabun ที่โหลดมาจาก Sarabun-normal.js
+      doc.setFont("Sarabun", "normal");
+
       // หัวกระดาษ
       doc.setFontSize(14);
       doc.text("รายงานจุดจอดนอกจุด", 14, 12);
+
       doc.setFontSize(10);
       doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
-      doc.text(`จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`, 14, 24);
+      doc.text(
+        `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
+        14,
+        24
+      );
 
-      // หัวตาราง
       const head = [[
         "#",
         "ทะเบียนรถ",
@@ -1272,7 +1282,6 @@
         "ใช้เวลาจอด"
       ]];
 
-      // ข้อมูลในตาราง
       const body = records.map((r, idx) => ([
         idx + 1,
         r.licenseText,
@@ -1286,36 +1295,40 @@
         r.durationText
       ]));
 
-      // ใช้ autoTable วาดตารางใน PDF
       doc.autoTable({
         startY: 28,
         head,
         body,
         styles: {
+          font: "Sarabun",
           fontSize: 8,
           cellPadding: 2,
           halign: "center",
-          valign: "middle"
+          valign: "middle",
+          overflow: "linebreak"
         },
         headStyles: {
           fillColor: [243, 244, 246],
-          textColor: 0
+          textColor: 0,
+          font: "Sarabun",
+          fontStyle: "normal"
         },
         bodyStyles: {
           textColor: 0
         },
         columnStyles: {
-          4: { halign: "left" },  // สถานที่
-          5: { halign: "left" }   // พิกัด
-        }
+          1: { cellWidth: 23 },           // ทะเบียน
+          2: { cellWidth: 22 },           // ชื่อ พขร
+          4: { halign: "left", cellWidth: 45 }, // สถานที่
+          5: { halign: "left", cellWidth: 40 }  // พิกัด
+        },
+        margin: { left: 10, right: 10 }
       });
 
-      // ตั้งชื่อไฟล์ตามช่วงวันที่
       const fileStart = startStr.replace(/\//g, "");
       const fileEnd = endStr.replace(/\//g, "");
       const fileName = `stops_${fileStart}_${fileEnd}.pdf`;
 
-      // สั่งดาวน์โหลดไฟล์ PDF ทันที
       doc.save(fileName);
     }
 
