@@ -68,12 +68,12 @@
       background: #6b7280;
     }
 
-    /* ปุ่ม Export */
     button#exportExcelBtn {
       background: #16a34a !important;
       color: white !important;
       border: none !important;
     }
+
     button#exportPdfBtn {
       background: #f97316 !important;
       color: white !important;
@@ -138,7 +138,7 @@
       margin-bottom: 8px;
     }
 
-    /* ====== LOGIN OVERLAY ====== */
+    /* LOGIN OVERLAY */
     .login-overlay {
       position: fixed;
       inset: 0;
@@ -310,20 +310,20 @@
       note: "หมายเหตุ"
     };
 
-    // ===== หมุด parking พิเศษ ให้เป็นสีชมพู =====
+    // ===== จุด parking พิเศษให้เป็นสีชมพู =====
     const SPECIAL_PARKING_POINTS = [
-      { lat: 13.103477, lng: 101.139517 },  // จอดเติมน้ำมันคาเท็ก-เพียวไทย
-      { lat: 14.130982, lng: 101.869226 },  // สถานีตรวจสอบน้ำหนัก ปราจีนขาออก
-      { lat: 14.216121, lng: 101.901196 },  // ปั๊มPTT อ.นาดี
-      { lat: 14.290456, lng: 101.882777 },  // พักรถ อ.นาดี(ก่อนขึ้นเขาปัก)
-      { lat: 14.392192, lng: 101.865672 },  // จุดบริการประชาชน อ.วังน้ำเขียว
-      { lat: 15.235707, lng: 102.377116 },  // คาเท็กเพียวไทย อ.โนนสูง
-      { lat: 15.614965, lng: 103.836375 },  // PTT Station ปตท.สุวรรณภูมิ-พนมไพร
-      { lat: 17.336552, lng: 102.834422 }   // PTT Station ปตท.บ้านตาด
+      { lat: 13.103477, lng: 101.139517 },
+      { lat: 14.130982, lng: 101.869226 },
+      { lat: 14.216121, lng: 101.901196 },
+      { lat: 14.290456, lng: 101.882777 },
+      { lat: 14.392192, lng: 101.865672 },
+      { lat: 15.235707, lng: 102.377116 },
+      { lat: 15.614965, lng: 103.836375 },
+      { lat: 17.336552, lng: 102.834422 }
     ];
 
     function isSpecialParking(lat, lng) {
-      const EPS = 0.0005; // ~50m
+      const EPS = 0.0005;
       return SPECIAL_PARKING_POINTS.some(p =>
         Math.abs(p.lat - lat) < EPS && Math.abs(p.lng - lng) < EPS
       );
@@ -666,7 +666,6 @@
       return clusters;
     }
 
-    /* ฟังก์ชันอ่านพิกัด parking */
     function getParkingLatLng(row) {
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
@@ -820,14 +819,9 @@
       return result;
     }
 
-    // ---- แสดงหมุด parking (เขียว + ชมพู) ----
+    // ---- วาดหมุดจอดมาตรฐาน + หมุดชมพูพิเศษ ----
     function renderParkingMarkers(boundsArray) {
       parkingLayer.clearLayers();
-
-      if (!parkingData || parkingData.length === 0) {
-        console.warn("⚠️ ไม่มีข้อมูล parkingData ให้แสดงหมุด");
-        return;
-      }
 
       const defaultIcon = L.icon({
         iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -839,55 +833,72 @@
         shadowSize: [41, 41]
       });
 
-      parkingData.forEach((row, idx) => {
-        const { lat, lng } = getParkingLatLng(row);
-        if (Number.isNaN(lat) || Number.isNaN(lng)) {
-          // console.warn("row ไม่มีพิกัด :", idx, row);
-          return;
-        }
+      let countFromSheet = 0;
 
-        const vals = Object.values(row);
-        const name =
-          row[PARKING_COLUMN.name] ||
-          row[PARKING_COLUMN.locationText] ||
-          row["ชื่อสถานที่"] ||
-          vals[0] ||
-          "-";
+      if (Array.isArray(parkingData) && parkingData.length > 0) {
+        parkingData.forEach((row, idx) => {
+          const { lat, lng } = getParkingLatLng(row);
+          if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
-        const note = row[PARKING_COLUMN.note] || "";
+          const vals = Object.values(row);
+          const name =
+            row[PARKING_COLUMN.name] ||
+            row[PARKING_COLUMN.locationText] ||
+            row["ชื่อสถานที่"] ||
+            vals[0] ||
+            "-";
 
-        const popupHtml = `
-          <div style="font-size:13px;">
-            <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
-            ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
-            <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
-            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
-              เปิดใน Google Maps
-            </a>
-          </div>
-        `;
+          const note = row[PARKING_COLUMN.note] || "";
 
-        let marker;
-        if (isSpecialParking(lat, lng)) {
-          marker = L.circleMarker([lat, lng], {
-            radius: 10,
-            color: "#9d174d",
-            weight: 2,
-            fillColor: "#ec4899",
-            fillOpacity: 0.95
-          });
-        } else {
-          marker = L.marker([lat, lng], { icon: defaultIcon });
-        }
+          const popupHtml = `
+            <div style="font-size:13px;">
+              <strong>จุดจอด/ที่จอดมาตรฐาน:</strong> ${name}<br/>
+              ${note ? `<strong>หมายเหตุ:</strong> ${note}<br/>` : ""}
+              <strong>Lat,Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}<br/>
+              <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+                เปิดใน Google Maps
+              </a>
+            </div>
+          `;
 
-        marker.bindPopup(popupHtml);
-        marker.bindTooltip(name, { direction: "top", offset: [0, -28] });
+          let marker;
+          if (isSpecialParking(lat, lng)) {
+            marker = L.circleMarker([lat, lng], {
+              radius: 10,
+              color: "#9d174d",
+              weight: 2,
+              fillColor: "#ec4899",
+              fillOpacity: 0.95
+            });
+          } else {
+            marker = L.marker([lat, lng], { icon: defaultIcon });
+          }
+
+          marker.bindPopup(popupHtml);
+          marker.bindTooltip(name, { direction: "top", offset: [0, -28] });
+          marker.addTo(parkingLayer);
+
+          if (boundsArray) boundsArray.push([lat, lng]);
+          countFromSheet++;
+        });
+      }
+
+      // วาดหมุดชมพูจาก SPECIAL_PARKING_POINTS โดยตรง เผื่อกรณีไม่มีในชีต
+      SPECIAL_PARKING_POINTS.forEach(p => {
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: 10,
+          color: "#9d174d",
+          weight: 2,
+          fillColor: "#ec4899",
+          fillOpacity: 0.95
+        });
+        marker.bindTooltip("จุดพักรถพิเศษ", { direction: "top", offset: [0, -28] });
         marker.addTo(parkingLayer);
-
-        if (boundsArray) boundsArray.push([lat, lng]);
+        if (boundsArray) boundsArray.push([p.lat, p.lng]);
       });
 
-      console.log("✅ parking markers rendered");
+      console.log("✅ renderParkingMarkers: fromSheet =", countFromSheet,
+                  ", specialPoints =", SPECIAL_PARKING_POINTS.length);
     }
 
     function formatDateInputToDDMMYYYY(inputVal) {
@@ -940,7 +951,6 @@
       box.innerHTML = html;
     }
 
-    // ---------- renderMap() ----------
     function renderMap() {
       markersLayer.clearLayers();
 
@@ -961,7 +971,7 @@
         if (bounds.length > 0) {
           map.fitBounds(bounds, { padding: [40, 40] });
         }
-        updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐาน)");
+        updateStatus("กรุณาเลือกช่วงวันเวลาก่อนเพื่อดูข้อมูลจุดจอด (ตอนนี้แสดงเฉพาะจุดจอดมาตรฐานและจุดพิเศษ)");
         updateSummaryBox({}, startInput, endInput);
         return;
       }
@@ -1108,9 +1118,7 @@
       };
       legend.addTo(map);
     }
-    // ---------- จบ renderMap ----------
 
-    // ---------- ส่วน Export ----------
     function escapeCSV(val) {
       if (val === null || val === undefined) return "";
       const s = String(val).replace(/"/g, '""');
@@ -1404,6 +1412,7 @@
               refData.push({ lat, lng });
             }
           });
+          console.log("✅ refData rows:", refData.length);
           if (callback) callback();
         },
         error: function (err) {
@@ -1424,6 +1433,7 @@
         complete: function (results) {
           rawData = results.data || [];
           console.log("✅ rawData rows:", rawData.length);
+
           loadParkingData(() => {
             loadRefData(() => {
               updateStatus(
@@ -1441,7 +1451,7 @@
       });
     }
 
-    // ====== LOGIN LOGIC ======
+    // LOGIN
     const VALID_ID = "kcpetro9999";
     const VALID_PASS = "kcpetropass9999";
 
@@ -1452,8 +1462,7 @@
 
       if (id === VALID_ID && pass === VALID_PASS) {
         errorEl.textContent = "";
-        const overlay = document.getElementById("loginOverlay");
-        overlay.style.display = "none";
+        document.getElementById("loginOverlay").style.display = "none";
         loadData();
       } else {
         errorEl.textContent = "ID หรือ Password ไม่ถูกต้อง";
