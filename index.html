@@ -13,6 +13,10 @@
     crossorigin=""
   />
 
+  <!-- jsPDF & AutoTable (ใช้สร้างไฟล์ PDF ฝั่งหน้าเว็บ) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
   <style>
     body {
       margin: 0;
@@ -216,12 +220,10 @@
       <p>กรุณากรอก ID และ Password เพื่อดูข้อมูลแผนที่</p>
       <div class="login-field">
         <label for="loginId">ID</label>
-        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="text" id="loginId" />
       </div>
       <div class="login-field">
         <label for="loginPass">Password</label>
-        <!-- ช่องว่าง ไม่มี placeholder -->
         <input type="password" id="loginPass" />
       </div>
       <button id="loginBtn">เข้าสู่ระบบ</button>
@@ -651,7 +653,6 @@
       return clusters;
     }
 
-    /* ฟังก์ชันอ่านพิกัด parking: รองรับหลายแบบ */
     function getParkingLatLng(row) {
       let lat = parseFloat(
         row[PARKING_COLUMN.lat] ??
@@ -903,7 +904,6 @@
       box.innerHTML = html;
     }
 
-    // ---------- renderMap() ----------
     function renderMap() {
       markersLayer.clearLayers();
 
@@ -1071,9 +1071,7 @@
       };
       legend.addTo(map);
     }
-    // ---------- จบ renderMap ----------
 
-    // ---------- ส่วน Export ----------
     function escapeCSV(val) {
       if (val === null || val === undefined) return "";
       const s = String(val).replace(/"/g, '""');
@@ -1236,6 +1234,7 @@
       URL.revokeObjectURL(url);
     }
 
+    // ==== Export PDF แบบดาวน์โหลดไฟล์ทันที ====
     function exportToPDF() {
       const result = generateReportRecords();
       if (!result) return;
@@ -1244,95 +1243,80 @@
       const startStr = formatDateInputToDDMMYYYY(startInput);
       const endStr = formatDateInputToDDMMYYYY(endInput);
 
-      const win = window.open("", "_blank");
-      if (!win) {
-        alert("เบราว์เซอร์บล็อก popup กรุณาอนุญาต popup ก่อน");
-        return;
-      }
-
-      let tableRows = "";
-      records.forEach((r, idx) => {
-        tableRows += `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>${r.licenseText}</td>
-            <td>${r.driverText}</td>
-            <td>${r.org}</td>
-            <td>${r.locationText}</td>
-            <td>${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</td>
-            <td>${r.rowsCount}</td>
-            <td>${r.startTime}</td>
-            <td>${r.endTime}</td>
-            <td>${r.durationText}</td>
-          </tr>
-        `;
+      // ดึง jsPDF จาก UMD
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "landscape",  // แนวนอน
+        unit: "mm",
+        format: "a4"
       });
 
-      const html = `
-        <!DOCTYPE html>
-        <html lang="th">
-        <head>
-          <meta charset="utf-8" />
-          <title>รายงานจุดจอดนอกจุด</title>
-          <style>
-            body {
-              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-              font-size: 12px;
-              padding: 16px;
-            }
-            h2 { margin: 0 0 4px 0; }
-            .subtitle { margin-bottom: 12px; font-size: 12px; color: #4b5563; }
-            table { border-collapse: collapse; width: 100%; font-size: 11px; }
-            th, td {
-              border: 1px solid #d1d5db;
-              padding: 4px 6px;
-              vertical-align: middle;
-              text-align: center;
-            }
-            th {
-              background: #f3f4f6;
-            }
-            .print-btn { margin-bottom: 12px; padding: 4px 10px; font-size: 12px; }
-            @media print {
-              .print-btn { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <h2>รายงานจุดจอดนอกจุด</h2>
-          <div class="subtitle">
-            ช่วงวันที่ ${startStr} ถึง ${endStr}<br/>
-            จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด
-          </div>
+      // หัวกระดาษ
+      doc.setFontSize(14);
+      doc.text("รายงานจุดจอดนอกจุด", 14, 12);
+      doc.setFontSize(10);
+      doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
+      doc.text(`จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`, 14, 24);
 
-          <button class="print-btn" onclick="window.print()">พิมพ์รายงาน</button>
+      // หัวตาราง
+      const head = [[
+        "#",
+        "ทะเบียนรถ",
+        "ชื่อ พขร",
+        "สังกัด",
+        "สถานที่",
+        "พิกัด (Lat,Lng)",
+        "จำนวนจุดในคลัสเตอร์",
+        "เวลาเริ่มต้น",
+        "เวลาสิ้นสุด",
+        "ใช้เวลาจอด"
+      ]];
 
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>ทะเบียนรถ</th>
-                <th>ชื่อ พขร</th>
-                <th>สังกัด</th>
-                <th>สถานที่</th>
-                <th>พิกัด (Lat,Lng)</th>
-                <th>จำนวนจุดในคลัสเตอร์</th>
-                <th>เวลาเริ่มต้น</th>
-                <th>เวลาสิ้นสุด</th>
-                <th>ใช้เวลาจอด</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `;
+      // ข้อมูลในตาราง
+      const body = records.map((r, idx) => ([
+        idx + 1,
+        r.licenseText,
+        r.driverText,
+        r.org,
+        r.locationText,
+        `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
+        r.rowsCount,
+        r.startTime,
+        r.endTime,
+        r.durationText
+      ]));
 
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
+      // ใช้ autoTable วาดตารางใน PDF
+      doc.autoTable({
+        startY: 28,
+        head,
+        body,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          halign: "center",
+          valign: "middle"
+        },
+        headStyles: {
+          fillColor: [243, 244, 246],
+          textColor: 0
+        },
+        bodyStyles: {
+          textColor: 0
+        },
+        columnStyles: {
+          4: { halign: "left" },  // สถานที่
+          5: { halign: "left" }   // พิกัด
+        }
+      });
+
+      // ตั้งชื่อไฟล์ตามช่วงวันที่
+      const fileStart = startStr.replace(/\//g, "");
+      const fileEnd = endStr.replace(/\//g, "");
+      const fileName = `stops_${fileStart}_${fileEnd}.pdf`;
+
+      // สั่งดาวน์โหลดไฟล์ PDF ทันที
+      doc.save(fileName);
     }
 
     function loadParkingData(callback) {
@@ -1415,7 +1399,6 @@
         errorEl.textContent = "";
         const overlay = document.getElementById("loginOverlay");
         overlay.style.display = "none";
-        // เมื่อเข้าสู่ระบบสำเร็จ จึงเริ่มโหลดข้อมูล
         loadData();
       } else {
         errorEl.textContent = "ID หรือ Password ไม่ถูกต้อง";
@@ -1425,10 +1408,8 @@
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
 
-      // ตั้งข้อความเริ่มต้น
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
-      // Login events
       document.getElementById("loginBtn")
         .addEventListener("click", handleLogin);
 
@@ -1439,7 +1420,6 @@
           }
         });
 
-      // ปุ่ม filter / export (จะทำงานหลังจาก loadData แล้ว)
       document.getElementById("applyFilterBtn")
         .addEventListener("click", () => renderMap());
 
