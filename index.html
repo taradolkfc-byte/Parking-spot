@@ -1235,8 +1235,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
-  // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
+   // ==== Export PDF แบบใช้ฟอนต์ไทย Sarabun และจัดตารางให้อ่านง่าย ====
 function exportToPDF() {
   const result = generateReportRecords();
   if (!result) return;
@@ -1245,14 +1244,14 @@ function exportToPDF() {
   const startStr = formatDateInputToDDMMYYYY(startInput);
   const endStr   = formatDateInputToDDMMYYYY(endInput);
 
-  // ใช้ jsPDF จาก global (ให้ตรงกับที่ Sarabun-normal.js ใช้)
-  const doc = new window.jsPDF({
+  // ✅ ใช้ jsPDF global (จาก jspdf.min.js)
+  const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
     format: "a4"
   });
 
-  // ✅ ใช้ฟอนต์ไทยที่เรา register ไว้ (Sarabun)
+  // ✅ ใช้ฟอนต์ไทยที่ register ใน Sarabun-normal.js
   doc.setFont("Sarabun", "normal");
 
   // หัวกระดาษ
@@ -1323,6 +1322,7 @@ function exportToPDF() {
   const fileEnd   = endStr.replace(/\//g, "");
   doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
 }
+
 
 
 
