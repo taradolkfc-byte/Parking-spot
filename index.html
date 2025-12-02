@@ -13,10 +13,22 @@
     crossorigin=""
   />
 
-  <!-- jsPDF & AutoTable (ใช้สร้างไฟล์ PDF ฝั่งหน้าเว็บ) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <script src="./Sarabun-normal.js"></script>
+  <!-- jsPDF (UMD) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- สร้าง alias ให้ jsPDF ไปอยู่ที่ window.jsPDF (ให้ปลั๊กอินอื่นเรียกใช้ได้) -->
+<script>
+  if (window.jspdf && window.jspdf.jsPDF) {
+    window.jsPDF = window.jspdf.jsPDF;
+  }
+</script>
+
+<!-- AutoTable plugin (ต้องโหลดหลัง jsPDF และ alias ข้างบน) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<!-- ฟอนต์ Sarabun ที่ผูกกับ jsPDF (โหลดทีหลัง jsPDF) -->
+<script src="./Sarabun-normal.js"></script>
+
 
   <style>
     body {
