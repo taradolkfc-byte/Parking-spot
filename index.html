@@ -13,12 +13,22 @@
     crossorigin=""
   />
 
-  <!-- jsPDF & AutoTable (ใช้ตัวที่มี global jsPDF) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.min.js"></script>
+  <!-- jsPDF (UMD) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <!-- สร้างตัวแปร jsPDF แบบ global จาก UMD -->
+  <script>
+    if (window.jspdf && window.jspdf.jsPDF) {
+      window.jsPDF = window.jspdf.jsPDF;
+    }
+  </script>
+  
+  <!-- AutoTable ต้องโหลดหลังจากที่มี window.jsPDF แล้ว -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-  <!-- ฟอนต์ Sarabun ที่ build เป็น js แล้ว (ต้องอยู่โฟลเดอร์เดียวกับไฟล์นี้) -->
+  
+  <!-- ฟอนต์ Sarabun (อยู่โฟลเดอร์เดียวกับ index.html) -->
   <script src="./Sarabun-normal.js"></script>
+
 
   <style>
     body {
