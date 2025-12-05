@@ -1332,7 +1332,7 @@
     cellPadding: 2,
     halign: "center",
     valign: "middle",
-    overflow: "linebreak"        // ค่า default สำหรับทุกคอลัมน์
+    overflow: "linebreak"
   },
   headStyles: {
     font: sarabunFontName || "helvetica",
@@ -1341,17 +1341,19 @@
     textColor: 0
   },
   columnStyles: {
-    1: { cellWidth: 23 },                          // ทะเบียนรถ
-    2: {                                           // ชื่อ พขร  ← แก้ตรงนี้
-      cellWidth: 32,                               // ขยายให้กว้างขึ้นหน่อย
-      overflow: "ellipsize",                      // บังคับบรรทัดเดียว ถ้ายาวให้เป็น …
-      halign: "left"
-    },
-    4: { halign: "center", cellWidth: 45 },        // สถานที่
-    5: { halign: "left",   cellWidth: 40 }         // พิกัด
+    0: { cellWidth: 8 },              // #
+    1: { cellWidth: 22 },             // ทะเบียนรถ
+    2: { cellWidth: 42, halign: "left" }, // 🔴 ชื่อ พขร (เพิ่มความกว้าง + ชิดซ้าย)
+    3: { cellWidth: 12 },             // สังกัด
+    4: { cellWidth: 32, halign: "center" }, // สถานที่
+    5: { cellWidth: 40, halign: "left" },   // พิกัด (Lat,Lng)
+    6: { cellWidth: 28 },             // เวลาเริ่มต้น
+    7: { cellWidth: 28 },             // เวลาสิ้นสุด
+    8: { cellWidth: 18 }              // ใช้เวลาจอด
   },
   margin: { left: 10, right: 10 }
 });
+
 
 
       const fileStart = startStr.replace(/\//g, "");
