@@ -1322,32 +1322,37 @@
         r.durationText
       ]));
 
-      doc.autoTable({
-        startY: 28,
-        head,
-        body,
-        styles: {
-          font: sarabunFontName || "helvetica",
-          fontSize: 8,
-          cellPadding: 2,
-          halign: "center",
-          valign: "middle",
-          overflow: "linebreak"
-        },
-        headStyles: {
-          font: sarabunFontName || "helvetica",
-          fontStyle: "normal",
-          fillColor: [243, 244, 246],
-          textColor: 0
-        },
-        columnStyles: {
-          1: { cellWidth: 23 },
-          2: { cellWidth: 22 },
-          4: { halign: "center", cellWidth: 45 },
-          5: { halign: "left", cellWidth: 40 }
-        },
-        margin: { left: 10, right: 10 }
-      });
+     doc.autoTable({
+  startY: 28,
+  head,
+  body,
+  styles: {
+    font: sarabunFontName || "helvetica",
+    fontSize: 8,
+    cellPadding: 2,
+    halign: "center",
+    valign: "middle",
+    overflow: "linebreak"        // ค่า default สำหรับทุกคอลัมน์
+  },
+  headStyles: {
+    font: sarabunFontName || "helvetica",
+    fontStyle: "normal",
+    fillColor: [243, 244, 246],
+    textColor: 0
+  },
+  columnStyles: {
+    1: { cellWidth: 23 },                          // ทะเบียนรถ
+    2: {                                           // ชื่อ พขร  ← แก้ตรงนี้
+      cellWidth: 32,                               // ขยายให้กว้างขึ้นหน่อย
+      overflow: "ellipsize",                      // บังคับบรรทัดเดียว ถ้ายาวให้เป็น …
+      halign: "left"
+    },
+    4: { halign: "center", cellWidth: 45 },        // สถานที่
+    5: { halign: "left",   cellWidth: 40 }         // พิกัด
+  },
+  margin: { left: 10, right: 10 }
+});
+
 
       const fileStart = startStr.replace(/\//g, "");
       const fileEnd   = endStr.replace(/\//g, "");
