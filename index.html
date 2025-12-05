@@ -1322,16 +1322,15 @@
         r.durationText
       ]));
 
-    doc.autoTable({
+   doc.autoTable({
   startY: 28,
   head,
   body,
   styles: {
     font: sarabunFontName || "helvetica",
     fontSize: 8,
-    // ลด padding ลงหน่อย จะได้เหลือพื้นที่ให้ตัวหนังสือ
-    cellPadding: { top: 1, bottom: 1, left: 1.5, right: 1.5 },
-    halign: "center",
+    cellPadding: 2,
+    halign: "center",   // ✅ จัดกึ่งกลางทุกคอลัมน์
     valign: "middle",
     overflow: "linebreak"
   },
@@ -1339,27 +1338,23 @@
     font: sarabunFontName || "helvetica",
     fontStyle: "normal",
     fillColor: [243, 244, 246],
-    textColor: 0
+    textColor: 0,
+    halign: "center"     // ✅ หัวตารางอยู่ตรงกลางด้วย
   },
-  // กำหนดความกว้างให้เต็มหน้า และเผื่อ "ชื่อ พขร" เป็นพิเศษ
   columnStyles: {
-    0: { cellWidth: 7 },   // #
-    1: { cellWidth: 25 },  // ทะเบียนรถ
-    2: { cellWidth: 45 },  // ชื่อ พขร  (กว้างสุด)
-    3: { cellWidth: 15 },  // สังกัด
-    4: { cellWidth: 28 },  // สถานที่
-    5: { cellWidth: 42 },  // พิกัด (Lat,Lng)
-    6: { cellWidth: 30 },  // เวลาเริ่มต้น
-    7: { cellWidth: 30 },  // เวลาสิ้นสุด
-    8: { cellWidth: 20 }   // ใช้เวลาจอด
+    0: { cellWidth: 7, halign: "center" },
+    1: { cellWidth: 25, halign: "center" },
+    2: { cellWidth: 45, halign: "center" },   // ชื่อ พขร ให้อยู่กลาง
+    3: { cellWidth: 15, halign: "center" },
+    4: { cellWidth: 28, halign: "center" },
+    5: { cellWidth: 42, halign: "center" },   // พิกัด กึ่งกลาง
+    6: { cellWidth: 30, halign: "center" },
+    7: { cellWidth: 30, halign: "center" },
+    8: { cellWidth: 20, halign: "center" }
   },
-  // ลด margin ด้านข้างลงนิดหน่อย เพื่อใช้พื้นที่ให้คุ้มขึ้น
   margin: { left: 8, right: 8 },
-  // บอก autoTable ให้ใช้ความกว้างตาม columns ที่เรากำหนด
   tableWidth: "auto"
 });
-
-
 
 
       const fileStart = startStr.replace(/\//g, "");
