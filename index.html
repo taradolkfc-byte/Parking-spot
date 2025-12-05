@@ -19,6 +19,7 @@
   <!-- สร้างตัวแปร jsPDF แบบ global จาก UMD -->
   <script>
     if (window.jspdf && window.jspdf.jsPDF) {
+      // ให้มีทั้ง window.jspdf.jsPDF (UMD) และ window.jsPDF (สำหรับปลั๊กอิน/ฟอนต์ที่อ้าง jsPDF.API)
       window.jsPDF = window.jspdf.jsPDF;
     }
   </script>
@@ -26,31 +27,9 @@
   <!-- AutoTable ต้องโหลดหลังจากที่มี window.jsPDF แล้ว -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   
-  <!-- ฟอนต์ Sarabun (อยู่โฟลเดอร์เดียวกับ index.html) -->
-  <script src="./Sarabun-normal.js"></script>
-  <script>
-  // ลงทะเบียนฟอนต์ Sarabun ให้ jsPDF ใช้งาน
-  (function () {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-      console.error("jsPDF UMD ยังไม่โหลด (window.jspdf.jsPDF ไม่มี)");
-      return;
-    }
-    if (typeof sarabunNormalBase64 === "undefined") {
-      console.error("ไม่พบตัวแปร sarabunNormalBase64 จาก Sarabun-normal.js");
-      return;
-    }
-
-    const { jsPDF } = window.jspdf;
-
-    // ผูกไฟล์ฟอนต์เข้ากับ Virtual File System ของ jsPDF
-    jsPDF.API.addFileToVFS("Sarabun-normal.ttf", sarabunNormalBase64);
-    jsPDF.API.addFont("Sarabun-normal.ttf", "Sarabun", "normal");
-
-    console.log("✅ ลงทะเบียนฟอนต์ Sarabun สำหรับ jsPDF แล้ว");
-  })();
-</script>
-
-
+  <!-- ฟอนต์ Sarabun (ไฟล์อยู่โฟลเดอร์เดียวกับ index.html) -->
+  <!-- ไฟล์นี้จะเรียก jsPDF.API.addFileToVFS / addFont ให้เอง -->
+  <script src="./Sarabun-Regular-normal.js"></script>
 
   <style>
     body {
@@ -1269,101 +1248,115 @@
       URL.revokeObjectURL(url);
     }
 
-   function exportToPDF() {
-  // เช็กว่า jsPDF โหลดสำเร็จหรือยัง
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert("ไม่พบ jsPDF กรุณาเช็คการโหลดสคริปต์ jsPDF");
-    console.error("window.jspdf หรือ window.jspdf.jsPDF เป็น undefined");
-    return;
-  }
+    function exportToPDF() {
+      // เช็กว่า jsPDF โหลดสำเร็จหรือยัง
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert("ไม่พบ jsPDF กรุณาเช็คการโหลดสคริปต์ jsPDF");
+        console.error("window.jspdf หรือ window.jspdf.jsPDF เป็น undefined");
+        return;
+      }
 
-  const { jsPDF } = window.jspdf;   // ✅ ดึงคลาส jsPDF ออกมาจาก UMD
+      const { jsPDF } = window.jspdf;   // ดึงคลาส jsPDF ออกมาจาก UMD
 
-  const result = generateReportRecords();
-  if (!result) return;
-  const { records, startInput, endInput } = result;
+      const result = generateReportRecords();
+      if (!result) return;
+      const { records, startInput, endInput } = result;
 
-  const startStr = formatDateInputToDDMMYYYY(startInput);
-  const endStr   = formatDateInputToDDMMYYYY(endInput);
+      const startStr = formatDateInputToDDMMYYYY(startInput);
+      const endStr   = formatDateInputToDDMMYYYY(endInput);
 
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: "a4"
-  });
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4"
+      });
 
-  // ✅ ใช้ฟอนต์ Sarabun ที่เรา register ไว้แล้ว
-  doc.setFont("Sarabun", "normal");
+      // ค้นหาชื่อฟอนต์ที่มีคำว่า "sarabun" ในระบบ แล้วใช้ชื่อนั้น
+      let sarabunFontName = null;
+      if (typeof doc.getFontList === "function") {
+        const fontList = doc.getFontList();
+        for (const name of Object.keys(fontList)) {
+          if (name.toLowerCase().includes("sarabun")) {
+            sarabunFontName = name;
+            break;
+          }
+        }
+      }
+      if (sarabunFontName) {
+        doc.setFont(sarabunFontName, "normal");
+      } else {
+        // ถ้าไม่เจอให้ใช้ฟอนต์เริ่มต้น
+        doc.setFont("helvetica", "normal");
+      }
 
-  // หัวกระดาษ
-  doc.setFontSize(14);
-  doc.text("รายงานจุดจอดนอกจุด", 14, 12);
-  doc.setFontSize(10);
-  doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
-  doc.text(
-    `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
-    14,
-    24
-  );
+      // หัวกระดาษ
+      doc.setFontSize(14);
+      doc.text("รายงานจุดจอดนอกจุด", 14, 12);
+      doc.setFontSize(10);
+      doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, 14, 18);
+      doc.text(
+        `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
+        14,
+        24
+      );
 
-  const head = [[
-    "#",
-    "ทะเบียนรถ",
-    "ชื่อ พขร",
-    "สังกัด",
-    "สถานที่",
-    "พิกัด (Lat,Lng)",
-    "จำนวนจุดในคลัสเตอร์",
-    "เวลาเริ่มต้น",
-    "เวลาสิ้นสุด",
-    "ใช้เวลาจอด"
-  ]];
+      const head = [[
+        "#",
+        "ทะเบียนรถ",
+        "ชื่อ พขร",
+        "สังกัด",
+        "สถานที่",
+        "พิกัด (Lat,Lng)",
+        "จำนวนจุดในคลัสเตอร์",
+        "เวลาเริ่มต้น",
+        "เวลาสิ้นสุด",
+        "ใช้เวลาจอด"
+      ]];
 
-  const body = records.map((r, idx) => ([
-    idx + 1,
-    r.licenseText,
-    r.driverText,
-    r.org,
-    r.locationText,
-    `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
-    r.rowsCount,
-    r.startTime,
-    r.endTime,
-    r.durationText
-  ]));
+      const body = records.map((r, idx) => ([
+        idx + 1,
+        r.licenseText,
+        r.driverText,
+        r.org,
+        r.locationText,
+        `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
+        r.rowsCount,
+        r.startTime,
+        r.endTime,
+        r.durationText
+      ]));
 
-  doc.autoTable({
-    startY: 28,
-    head,
-    body,
-    styles: {
-      font: "Sarabun",
-      fontSize: 8,
-      cellPadding: 2,
-      halign: "center",
-      valign: "middle",
-      overflow: "linebreak"
-    },
-    headStyles: {
-      font: "Sarabun",
-      fontStyle: "normal",
-      fillColor: [243, 244, 246],
-      textColor: 0
-    },
-    columnStyles: {
-      1: { cellWidth: 23 },
-      2: { cellWidth: 22 },
-      4: { halign: "left", cellWidth: 45 },
-      5: { halign: "left", cellWidth: 40 }
-    },
-    margin: { left: 10, right: 10 }
-  });
+      doc.autoTable({
+        startY: 28,
+        head,
+        body,
+        styles: {
+          font: sarabunFontName || "helvetica",
+          fontSize: 8,
+          cellPadding: 2,
+          halign: "center",
+          valign: "middle",
+          overflow: "linebreak"
+        },
+        headStyles: {
+          font: sarabunFontName || "helvetica",
+          fontStyle: "normal",
+          fillColor: [243, 244, 246],
+          textColor: 0
+        },
+        columnStyles: {
+          1: { cellWidth: 23 },
+          2: { cellWidth: 22 },
+          4: { halign: "left", cellWidth: 45 },
+          5: { halign: "left", cellWidth: 40 }
+        },
+        margin: { left: 10, right: 10 }
+      });
 
-  const fileStart = startStr.replace(/\//g, "");
-  const fileEnd   = endStr.replace(/\//g, "");
-  doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
-}
-
+      const fileStart = startStr.replace(/\//g, "");
+      const fileEnd   = endStr.replace(/\//g, "");
+      doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
+    }
 
     function loadParkingData(callback) {
       Papa.parse(PARKING_CSV_URL, {
