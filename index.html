@@ -360,6 +360,29 @@
       document.getElementById("statusBar").textContent = text;
     }
 
+    // ------------ ฟังก์ชันตั้งค่าเวลาเริ่มต้น 00:01 / 23:59 ------------
+    function setDefaultDateTimes() {
+      const startInput = document.getElementById("startDatetime");
+      const endInput   = document.getElementById("endDatetime");
+
+      if (startInput && !startInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        startInput.value = `${y}-${m}-${d}T00:01`;
+      }
+
+      if (endInput && !endInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        endInput.value = `${y}-${m}-${d}T23:59`;
+      }
+    }
+    // -------------------------------------------------------------------
+
     function normalizeLicense(license) {
       if (!license) return "";
       return String(license).trim();
@@ -586,10 +609,12 @@
     }
 
     function resetFilters() {
-      document.getElementById("startDatetime").value = "";
-      document.getElementById("endDatetime").value = "";
+      // เคลียร์เฉพาะทะเบียน/พขร แล้วตั้งเวลา default ใหม่
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
+      document.getElementById("startDatetime").value = "";
+      document.getElementById("endDatetime").value = "";
+      setDefaultDateTimes();
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
       renderMap();
@@ -1246,123 +1271,120 @@
       URL.revokeObjectURL(url);
     }
 
-   function exportToPDF() {
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert("ไม่พบ jsPDF กรุณาเช็คการโหลดสคริปต์ jsPDF");
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const result = generateReportRecords();
-  if (!result) return;
-  const { records, startInput, endInput } = result;
-
-  const startStr = formatDateInputToDDMMYYYY(startInput);
-  const endStr   = formatDateInputToDDMMYYYY(endInput);
-
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: "a4"
-  });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  // ฟอนต์
-  let sarabunFontName = null;
-  if (typeof doc.getFontList === "function") {
-    const fontList = doc.getFontList();
-    for (const name of Object.keys(fontList)) {
-      if (name.toLowerCase().includes("sarabun")) {
-        sarabunFontName = name;
-        break;
+    function exportToPDF() {
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert("ไม่พบ jsPDF กรุณาเช็คการโหลดสคริปต์ jsPDF");
+        return;
       }
+
+      const { jsPDF } = window.jspdf;
+      const result = generateReportRecords();
+      if (!result) return;
+      const { records, startInput, endInput } = result;
+
+      const startStr = formatDateInputToDDMMYYYY(startInput);
+      const endStr   = formatDateInputToDDMMYYYY(endInput);
+
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // ฟอนต์
+      let sarabunFontName = null;
+      if (typeof doc.getFontList === "function") {
+        const fontList = doc.getFontList();
+        for (const name of Object.keys(fontList)) {
+          if (name.toLowerCase().includes("sarabun")) {
+            sarabunFontName = name;
+            break;
+          }
+        }
+      }
+      doc.setFont(sarabunFontName || "helvetica", "normal");
+
+      // ===== หัวรายงาน จัดกลางหน้า =====
+      doc.setFontSize(14);
+      doc.text("รายงานจุดจอดนอกจุด", pageWidth / 2, 12, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, pageWidth / 2, 18, { align: "center" });
+      doc.text(
+        `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
+        pageWidth / 2,
+        24,
+        { align: "center" }
+      );
+
+      const head = [[
+        "#",
+        "ทะเบียนรถ",
+        "ชื่อ พขร",
+        "สังกัด",
+        "สถานที่",
+        "พิกัด(Lat,Lng)",
+        "เวลาเริ่มต้น",
+        "เวลาสิ้นสุด",
+        "ใช้เวลาจอด"
+      ]];
+
+      const body = records.map((r, idx) => ([
+        idx + 1,
+        r.licenseText,
+        r.driverText,
+        r.org,
+        r.locationText,
+        `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
+        r.startTime,
+        r.endTime,
+        r.durationText
+      ]));
+
+      // ==== คำนวณความกว้างตาราง + margin ซ้าย–ขวาให้เท่ากัน ====
+      const tableWidth = 7 + 23 + 40 + 15 + 28 + 42 + 30 + 30 + 20; // 235
+      const sideMargin = (pageWidth - tableWidth) / 2;
+
+      doc.autoTable({
+        startY: 30,
+        head,
+        body,
+        styles: {
+          font: sarabunFontName || "helvetica",
+          fontSize: 8,
+          cellPadding: 2,
+          halign: "center",
+          valign: "middle",
+          overflow: "linebreak"
+        },
+        headStyles: {
+          font: sarabunFontName || "helvetica",
+          fontStyle: "normal",
+          fillColor: [243, 244, 246],
+          textColor: 0,
+          halign: "center"
+        },
+        columnStyles: {
+          0: { cellWidth: 7,  halign: "center" },
+          1: { cellWidth: 23, halign: "center" },
+          2: { cellWidth: 40, halign: "center" },
+          3: { cellWidth: 15, halign: "center" },
+          4: { cellWidth: 28, halign: "center" },
+          5: { cellWidth: 42, halign: "center" },
+          6: { cellWidth: 30, halign: "center" },
+          7: { cellWidth: 30, halign: "center" },
+          8: { cellWidth: 20, halign: "center" }
+        },
+        margin: { left: sideMargin, right: sideMargin },
+        tableWidth: tableWidth
+      });
+
+      const fileStart = startStr.replace(/\//g, "");
+      const fileEnd   = endStr.replace(/\//g, "");
+      doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
     }
-  }
-  doc.setFont(sarabunFontName || "helvetica", "normal");
-
-  // ===== หัวรายงาน จัดกลางหน้า =====
-  doc.setFontSize(14);
-  doc.text("รายงานจุดจอดนอกจุด", pageWidth / 2, 12, { align: "center" });
-
-  doc.setFontSize(10);
-  doc.text(`ช่วงวันที่ ${startStr} ถึง ${endStr}`, pageWidth / 2, 18, { align: "center" });
-  doc.text(
-    `จำนวนคลัสเตอร์จุดจอดนอกจุดทั้งหมด ${records.length.toLocaleString()} จุด`,
-    pageWidth / 2,
-    24,
-    { align: "center" }
-  );
-
-  const head = [[
-    "#",
-    "ทะเบียนรถ",
-    "ชื่อ พขร",
-    "สังกัด",
-    "สถานที่",
-    "พิกัด(Lat,Lng)",
-    "เวลาเริ่มต้น",
-    "เวลาสิ้นสุด",
-    "ใช้เวลาจอด"
-  ]];
-
-  const body = records.map((r, idx) => ([
-    idx + 1,
-    r.licenseText,
-    r.driverText,
-    r.org,
-    r.locationText,
-    `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`,
-    r.startTime,
-    r.endTime,
-    r.durationText
-  ]));
-
-  // ==== คำนวณความกว้างตาราง + margin ซ้าย–ขวาให้เท่ากัน ====
-  const tableWidth = 7 + 23 + 40 + 15 + 28 + 42 + 30 + 30 + 20; // รวม cellWidth ทุกคอลัมน์ = 235
-  const sideMargin = (pageWidth - tableWidth) / 2;              // เว้นซ้าย-ขวาเท่ากัน → ตารางอยู่กลางหน้า
-
-  doc.autoTable({
-    startY: 30,
-    head,
-    body,
-    styles: {
-      font: sarabunFontName || "helvetica",
-      fontSize: 8,
-      cellPadding: 2,
-      halign: "center",
-      valign: "middle",
-      overflow: "linebreak"
-    },
-    headStyles: {
-      font: sarabunFontName || "helvetica",
-      fontStyle: "normal",
-      fillColor: [243, 244, 246],
-      textColor: 0,
-      halign: "center"
-    },
-    columnStyles: {
-      0: { cellWidth: 7,  halign: "center" },
-      1: { cellWidth: 23, halign: "center" },
-      2: { cellWidth: 40, halign: "center" },
-      3: { cellWidth: 15, halign: "center" },
-      4: { cellWidth: 28, halign: "center" },
-      5: { cellWidth: 42, halign: "center" },
-      6: { cellWidth: 30, halign: "center" },
-      7: { cellWidth: 30, halign: "center" },
-      8: { cellWidth: 20, halign: "center" }
-    },
-    // ใช้ margin ซ้าย-ขวาเท่ากัน และบอก tableWidth ชัดเจน
-    margin: { left: sideMargin, right: sideMargin },
-    tableWidth: tableWidth
-  });
-
-  const fileStart = startStr.replace(/\//g, "");
-  const fileEnd   = endStr.replace(/\//g, "");
-  doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
-}
-
-
 
     function loadParkingData(callback) {
       Papa.parse(PARKING_CSV_URL, {
@@ -1452,6 +1474,9 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
+
+      // ตั้งค่าเวลาเริ่มต้น Start = 00:01, End = 23:59
+      setDefaultDateTimes();
 
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
