@@ -1246,7 +1246,7 @@
       URL.revokeObjectURL(url);
     }
 
-    function exportToPDF() {
+   function exportToPDF() {
   if (!window.jspdf || !window.jspdf.jsPDF) {
     alert("ไม่พบ jsPDF กรุณาเช็คการโหลดสคริปต์ jsPDF");
     return;
@@ -1266,10 +1266,9 @@
     format: "a4"
   });
 
-  // ----- หา width ของหน้า PDF -----
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // ----- เลือกฟอนต์ -----
+  // ฟอนต์
   let sarabunFontName = null;
   if (typeof doc.getFontList === "function") {
     const fontList = doc.getFontList();
@@ -1282,7 +1281,7 @@
   }
   doc.setFont(sarabunFontName || "helvetica", "normal");
 
-  // ===== หัวกระดาษ “จัดกลางหน้า” =====
+  // ===== หัวรายงาน จัดกลางหน้า =====
   doc.setFontSize(14);
   doc.text("รายงานจุดจอดนอกจุด", pageWidth / 2, 12, { align: "center" });
 
@@ -1319,7 +1318,10 @@
     r.durationText
   ]));
 
-  // ===== ตาราง จัดกึ่งกลางในแต่ละเซลล์ + ใช้ margin ซ้าย/ขวาเท่ากัน =====
+  // ==== คำนวณความกว้างตาราง + margin ซ้าย–ขวาให้เท่ากัน ====
+  const tableWidth = 7 + 23 + 40 + 15 + 28 + 42 + 30 + 30 + 20; // รวม cellWidth ทุกคอลัมน์ = 235
+  const sideMargin = (pageWidth - tableWidth) / 2;              // เว้นซ้าย-ขวาเท่ากัน → ตารางอยู่กลางหน้า
+
   doc.autoTable({
     startY: 30,
     head,
@@ -1328,7 +1330,7 @@
       font: sarabunFontName || "helvetica",
       fontSize: 8,
       cellPadding: 2,
-      halign: "center",   // ข้อความในทุกเซลล์อยู่กลาง
+      halign: "center",
       valign: "middle",
       overflow: "linebreak"
     },
@@ -1337,12 +1339,12 @@
       fontStyle: "normal",
       fillColor: [243, 244, 246],
       textColor: 0,
-      halign: "center"    // หัวคอลัมน์อยู่กลาง
+      halign: "center"
     },
     columnStyles: {
       0: { cellWidth: 7,  halign: "center" },
       1: { cellWidth: 23, halign: "center" },
-      2: { cellWidth: 40, halign: "center" },  // ชื่อ พขร
+      2: { cellWidth: 40, halign: "center" },
       3: { cellWidth: 15, halign: "center" },
       4: { cellWidth: 28, halign: "center" },
       5: { cellWidth: 42, halign: "center" },
@@ -1350,14 +1352,16 @@
       7: { cellWidth: 30, halign: "center" },
       8: { cellWidth: 20, halign: "center" }
     },
-    margin: { left: 10, right: 10 }, // ซ้าย-ขวาเท่ากัน = กลางหน้า
-    tableWidth: "auto"
+    // ใช้ margin ซ้าย-ขวาเท่ากัน และบอก tableWidth ชัดเจน
+    margin: { left: sideMargin, right: sideMargin },
+    tableWidth: tableWidth
   });
 
   const fileStart = startStr.replace(/\//g, "");
   const fileEnd   = endStr.replace(/\//g, "");
   doc.save(`stops_${fileStart}_${fileEnd}.pdf`);
 }
+
 
 
     function loadParkingData(callback) {
