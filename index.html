@@ -19,6 +19,7 @@
   <!-- สร้างตัวแปร jsPDF แบบ global จาก UMD -->
   <script>
     if (window.jspdf && window.jspdf.jsPDF) {
+      // ให้มีทั้ง window.jspdf.jsPDF (UMD) และ window.jsPDF (สำหรับปลั๊กอิน/ฟอนต์ที่อ้าง jsPDF.API)
       window.jsPDF = window.jspdf.jsPDF;
     }
   </script>
@@ -26,7 +27,8 @@
   <!-- AutoTable ต้องโหลดหลังจากที่มี window.jsPDF แล้ว -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   
-  <!-- ฟอนต์ Sarabun -->
+  <!-- ฟอนต์ Sarabun (ไฟล์อยู่โฟลเดอร์เดียวกับ index.html) -->
+  <!-- ไฟล์นี้จะเรียก jsPDF.API.addFileToVFS / addFont ให้เอง -->
   <script src="./Sarabun-Regular-normal.js"></script>
 
   <style>
@@ -84,6 +86,7 @@
       background: #6b7280;
     }
 
+    /* เปลี่ยนสีปุ่ม Export */
     button#exportExcelBtn {
       background: #16a34a !important;
       color: white !important;
@@ -154,7 +157,7 @@
       margin-bottom: 8px;
     }
 
-    /* LOGIN OVERLAY */
+    /* ====== LOGIN OVERLAY ====== */
     .login-overlay {
       position: fixed;
       inset: 0;
@@ -273,6 +276,7 @@
         <label>&nbsp;</label>
         <button id="resetFilterBtn" class="secondary">Reset</button>
       </div>
+      <!-- ปุ่ม Export -->
       <div class="filter-group">
         <label>&nbsp;</label>
         <button id="exportExcelBtn" class="secondary">Export Excel</button>
@@ -356,6 +360,29 @@
       document.getElementById("statusBar").textContent = text;
     }
 
+    // ------------ ฟังก์ชันตั้งค่าเวลาเริ่มต้น 00:01 / 23:59 ------------
+    function setDefaultDateTimes() {
+      const startInput = document.getElementById("startDatetime");
+      const endInput   = document.getElementById("endDatetime");
+
+      if (startInput && !startInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        startInput.value = `${y}-${m}-${d}T00:01`;
+      }
+
+      if (endInput && !endInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, "0");
+        const d = String(now.getDate()).padStart(2, "0");
+        endInput.value = `${y}-${m}-${d}T23:59`;
+      }
+    }
+    // -------------------------------------------------------------------
+
     function normalizeLicense(license) {
       if (!license) return "";
       return String(license).trim();
@@ -392,7 +419,7 @@
       const R = 6371000;
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lat2 - lon1);
+      const dLon = toRad(lon2 - lon1);
       const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
@@ -582,12 +609,12 @@
     }
 
     function resetFilters() {
-      // เคลียร์ทุกค่าให้ว่าง ไม่ตั้ง default วันที่
+      // เคลียร์เฉพาะทะเบียน/พขร แล้วตั้งเวลา default ใหม่
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
       document.getElementById("startDatetime").value = "";
       document.getElementById("endDatetime").value = "";
-
+      setDefaultDateTimes();
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
       renderMap();
@@ -1266,6 +1293,7 @@
 
       const pageWidth = doc.internal.pageSize.getWidth();
 
+      // ฟอนต์
       let sarabunFontName = null;
       if (typeof doc.getFontList === "function") {
         const fontList = doc.getFontList();
@@ -1278,6 +1306,7 @@
       }
       doc.setFont(sarabunFontName || "helvetica", "normal");
 
+      // ===== หัวรายงาน จัดกลางหน้า =====
       doc.setFontSize(14);
       doc.text("รายงานจุดจอดนอกจุด", pageWidth / 2, 12, { align: "center" });
 
@@ -1314,6 +1343,7 @@
         r.durationText
       ]));
 
+      // ==== คำนวณความกว้างตาราง + margin ซ้าย–ขวาให้เท่ากัน ====
       const tableWidth = 7 + 23 + 40 + 15 + 28 + 42 + 30 + 30 + 20; // 235
       const sideMargin = (pageWidth - tableWidth) / 2;
 
@@ -1423,7 +1453,7 @@
       });
     }
 
-    // LOGIN
+    // ====== LOGIN LOGIC ======
     const VALID_ID = "kcpetro9999";
     const VALID_PASS = "kcpetropass9999";
 
@@ -1444,6 +1474,9 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
+
+      // ตั้งค่าเวลาเริ่มต้น Start = 00:01, End = 23:59
+      setDefaultDateTimes();
 
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
