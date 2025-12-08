@@ -360,29 +360,6 @@
       document.getElementById("statusBar").textContent = text;
     }
 
-    // ------------ ฟังก์ชันตั้งค่าเวลาเริ่มต้น 00:01 / 23:59 ------------
-    function setDefaultDateTimes() {
-      const startInput = document.getElementById("startDatetime");
-      const endInput   = document.getElementById("endDatetime");
-
-      if (startInput && !startInput.value) {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, "0");
-        const d = String(now.getDate()).padStart(2, "0");
-        startInput.value = `${y}-${m}-${d}T00:01`;
-      }
-
-      if (endInput && !endInput.value) {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, "0");
-        const d = String(now.getDate()).padStart(2, "0");
-        endInput.value = `${y}-${m}-${d}T23:59`;
-      }
-    }
-    // -------------------------------------------------------------------
-
     function normalizeLicense(license) {
       if (!license) return "";
       return String(license).trim();
@@ -608,16 +585,30 @@
       updateDriverOptionsByCurrentFilters();
     }
 
+    // Reset แล้วให้ทุกช่องว่าง ไม่ตั้งวันที่
     function resetFilters() {
-      // เคลียร์เฉพาะทะเบียน/พขร แล้วตั้งเวลา default ใหม่
       document.getElementById("licenseSelect").value = "";
       document.getElementById("driverSelect").value = "";
       document.getElementById("startDatetime").value = "";
       document.getElementById("endDatetime").value = "";
-      setDefaultDateTimes();
+
       updateLicenseOptionsByCurrentFilters();
       updateDriverOptionsByCurrentFilters();
       renderMap();
+    }
+
+    // เมื่อเลือกวัน ให้ fix เวลา Start = 00:01, End = 23:59
+    function setFixedTimeOnChange(inputId, hh, mm) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+
+      input.addEventListener("change", () => {
+        if (!input.value) return;
+        const [datePart] = input.value.split("T");
+        const h = String(hh).padStart(2, "0");
+        const m = String(mm).padStart(2, "0");
+        input.value = `${datePart}T${h}:${m}`;
+      });
     }
 
     function initMap() {
@@ -1475,8 +1466,9 @@
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
 
-      // ตั้งค่าเวลาเริ่มต้น Start = 00:01, End = 23:59
-      setDefaultDateTimes();
+      // เมื่อผู้ใช้เลือกวัน: Start จะเป็น 00:01, End จะเป็น 23:59 อัตโนมัติ
+      setFixedTimeOnChange("startDatetime", 0, 1);
+      setFixedTimeOnChange("endDatetime", 23, 59);
 
       updateStatus("กรุณาเข้าสู่ระบบเพื่อโหลดข้อมูลจาก Google Sheets");
 
