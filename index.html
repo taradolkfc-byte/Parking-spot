@@ -370,7 +370,7 @@
         const y = now.getFullYear();
         const m = String(now.getMonth() + 1).padStart(2, "0");
         const d = String(now.getDate()).padStart(2, "0");
-        startInput.value = `${}-${}-${}T00:01`;
+        startInput.value = `${y}-${m}-${d}T00:01`;
       }
 
       if (endInput && !endInput.value) {
@@ -378,7 +378,7 @@
         const y = now.getFullYear();
         const m = String(now.getMonth() + 1).padStart(2, "0");
         const d = String(now.getDate()).padStart(2, "0");
-        endInput.value = `${}-${}-${}T23:59`;
+        endInput.value = `${y}-${m}-${d}T23:59`;
       }
     }
     // -------------------------------------------------------------------
