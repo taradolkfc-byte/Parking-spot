@@ -354,7 +354,8 @@
       "#fb7185"
     ];
 
-    const MIN_STOP_MS = 3 * 60 * 1000;
+    const MIN_STOP_MS = 3 * 60 * 1000;          // ขั้นต่ำ 3 นาที
+    const MAX_STOP_MS = 10 * 60 * 60 * 1000;    // ไม่เกิน 10 ชั่วโมง
 
     function updateStatus(text) {
       document.getElementById("statusBar").textContent = text;
@@ -825,7 +826,8 @@
 
           if (firstDt && lastDt) {
             const diffMs = lastDt - firstDt;
-            if (diffMs < MIN_STOP_MS) return;
+            if (diffMs < MIN_STOP_MS) return;   // น้อยกว่า 3 นาที ไม่เอา
+            if (diffMs > MAX_STOP_MS) return;   // มากกว่า 10 ชม. ก็ไม่เอา
           }
           count++;
         });
@@ -998,7 +1000,10 @@
         if (startDt && endDt) {
           diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            return;
+            return;                // < 3 นาที ตัดทิ้ง
+          }
+          if (diffMs > MAX_STOP_MS) {
+            return;                // > 10 ชม. ตัดทิ้ง
           }
         }
 
@@ -1071,7 +1076,7 @@
       }
 
       updateStatus(
-        `จำนวนจุดจอดนอกจุด (หลังตัด Ref และจอดไม่น้อยกว่า 3 นาที): ${shownCount.toLocaleString()} จุด`
+        `จำนวนจุดจอดนอกจุด (หลังตัด Ref และจอดระหว่าง 3 นาที – 10 ชั่วโมง): ${shownCount.toLocaleString()} จุด`
       );
 
       updateSummaryBox(licenseSummary, startInput, endInput);
@@ -1140,7 +1145,10 @@
         if (startDt && endDt) {
           const diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            return;
+            return;                 // < 3 นาที ไม่เอา
+          }
+          if (diffMs > MAX_STOP_MS) {
+            return;                 // > 10 ชม. ไม่เอา
           }
           const totalSec = Math.floor(diffMs / 1000);
           const hours = Math.floor(totalSec / 3600);
@@ -1205,7 +1213,7 @@
 
       const records = buildClusterRecords(filtered);
       if (!records.length) {
-        alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และไม่น้อยกว่า 3 นาที)");
+        alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และอยู่ระหว่าง 3 นาที – 10 ชั่วโมง)");
         return null;
       }
 
