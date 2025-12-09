@@ -354,7 +354,7 @@
       "#fb7185"
     ];
 
-    const MIN_STOP_MS = 3 * 60 * 1000;          // ขั้นต่ำ 3 นาที
+    const MIN_STOP_MS = (3 * 60 + 30) * 1000;   // ขั้นต่ำ 3 นาที 30 วินาที
     const MAX_STOP_MS = 10 * 60 * 60 * 1000;    // ไม่เกิน 10 ชั่วโมง
 
     function updateStatus(text) {
@@ -1000,7 +1000,7 @@
         if (startDt && endDt) {
           diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            return;                // < 3 นาที ตัดทิ้ง
+            return;                // < 3 นาที 30 วินาที ตัดทิ้ง
           }
           if (diffMs > MAX_STOP_MS) {
             return;                // > 10 ชม. ตัดทิ้ง
@@ -1076,7 +1076,7 @@
       }
 
       updateStatus(
-        `จำนวนจุดจอดนอกจุด (หลังตัด Ref และจอดระหว่าง 3 นาที – 10 ชั่วโมง): ${shownCount.toLocaleString()} จุด`
+        `จำนวนจุดจอดนอกจุด (หลังตัด Ref และจอดระหว่าง 3 นาที 30 วินาที – 10 ชั่วโมง): ${shownCount.toLocaleString()} จุด`
       );
 
       updateSummaryBox(licenseSummary, startInput, endInput);
@@ -1145,7 +1145,7 @@
         if (startDt && endDt) {
           const diffMs = endDt - startDt;
           if (diffMs < MIN_STOP_MS) {
-            return;                 // < 3 นาที ไม่เอา
+            return;                 // < 3 นาที 30 วินาที ไม่เอา
           }
           if (diffMs > MAX_STOP_MS) {
             return;                 // > 10 ชม. ไม่เอา
@@ -1213,7 +1213,7 @@
 
       const records = buildClusterRecords(filtered);
       if (!records.length) {
-        alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และอยู่ระหว่าง 3 นาที – 10 ชั่วโมง)");
+        alert("ไม่พบจุดจอดนอกจุด (หลังตัด Ref และอยู่ระหว่าง 3 นาที 30 วินาที – 10 ชั่วโมง)");
         return null;
       }
 
