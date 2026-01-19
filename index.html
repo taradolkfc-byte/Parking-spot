@@ -455,7 +455,7 @@
       if (!refData.length) return false;
       for (const p of refData) {
         const d = haversineMeters(lat, lng, p.lat, p.lng);
-        if (d <= 300) return true;
+        if (d <= 500) return true;
       }
       return false;
     }
@@ -634,7 +634,7 @@
       summaryControl.addTo(map);
     }
 
-    function clusterByRadius(data, radiusMeters = 300) {
+    function clusterByRadius(data, radiusMeters = 500) {
       const clusters = [];
       const MAX_CLUSTER_SPAN_MS = 20 * 60 * 60 * 1000;
 
@@ -809,7 +809,7 @@
       });
 
       licenseMap.forEach((rows, lic) => {
-        const clusters = clusterByRadius(rows, 300);
+        const clusters = clusterByRadius(rows, 500);
         let count = 0;
 
         clusters.forEach(cluster => {
@@ -972,7 +972,7 @@
       }
 
       const licenseSummary = computeLicenseSummary(filtered);
-      const clusters = clusterByRadius(filtered, 300);
+      const clusters = clusterByRadius(filtered, 500);
       const licensesInView = new Set();
 
       clusters.forEach(cluster => {
@@ -1117,7 +1117,7 @@
     }
 
     function buildClusterRecords(filtered) {
-      const clusters = clusterByRadius(filtered, 300);
+      const clusters = clusterByRadius(filtered, 500);
       const records = [];
 
       clusters.forEach(cluster => {
